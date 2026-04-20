@@ -15,4 +15,8 @@ export default () => ({
     jwtSecret: process.env.JWT_SECRET ?? 'development-secret-change-me',
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1d',
   },
+  storage: {
+    uploadDir: process.env.UPLOAD_DIR ?? 'storage/uploads',
+    maxFileSizeBytes: Number(process.env.MAX_FILE_SIZE_BYTES ?? 5242880),
+  },
 });

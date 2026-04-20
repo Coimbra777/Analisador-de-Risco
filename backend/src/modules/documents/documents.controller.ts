@@ -1,14 +1,29 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  Controller,
+  Param,
+  ParseIntPipe,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 
-import { RegisterDocumentDto } from './dto/register-document.dto';
+import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { UploadedPdfFile } from './interfaces/uploaded-pdf-file.interface';
 import { DocumentsService } from './documents.service';
 
-@Controller('documents')
+@UseGuards(JwtAuthGuard)
+@Controller('analyses/:analysisId/document')
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
   @Post()
-  create(@Body() registerDocumentDto: RegisterDocumentDto) {
-    return this.documentsService.create(registerDocumentDto);
+  @UseInterceptors(FileInterceptor('file'))
+  upload(
+    @Param('analysisId', ParseIntPipe) analysisId: number,
+    @UploadedFile() file: UploadedPdfFile,
+  ) {
+    return this.documentsService.uploadAndProcess(analysisId, file);
   }
 }
