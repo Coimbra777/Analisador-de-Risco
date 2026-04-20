@@ -1,11 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
-import { useAuth } from '@/composables/useAuth';
-import AppLayout from '@/components/AppLayout.vue';
-import AnalysisDetailPage from '@/pages/AnalysisDetailPage.vue';
-import AnalysesPage from '@/pages/AnalysesPage.vue';
-import CompaniesPage from '@/pages/CompaniesPage.vue';
-import LoginPage from '@/pages/LoginPage.vue';
+import LoginPage from '@/features/auth/pages/LoginPage.vue';
+import AnalysisDetailPage from '@/features/analyses/pages/AnalysisDetailPage.vue';
+import AnalysesPage from '@/features/analyses/pages/AnalysesPage.vue';
+import CompaniesPage from '@/features/companies/pages/CompaniesPage.vue';
+import { useAuth } from '@/shared/auth/use-auth';
+import AppLayout from '@/shared/layout/AppLayout.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -50,7 +50,12 @@ router.beforeEach((to) => {
   const { isAuthenticated } = useAuth();
 
   if (to.meta.requiresAuth && !isAuthenticated.value) {
-    return { name: 'login' };
+    return {
+      name: 'login',
+      query: {
+        redirect: to.fullPath,
+      },
+    };
   }
 
   if (to.meta.guestOnly && isAuthenticated.value) {

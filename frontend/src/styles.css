@@ -108,9 +108,31 @@ select {
   margin-bottom: 16px;
 }
 
+.section-title {
+  margin: 0;
+}
+
+.section-actions {
+  display: flex;
+  align-items: flex-start;
+}
+
+.analysis-page-header {
+  margin-bottom: 24px;
+}
+
+.analysis-page-header > .muted {
+  margin: 0 0 8px;
+}
+
 .field {
   display: grid;
   gap: 8px;
+}
+
+.field-help {
+  color: #60708f;
+  font-size: 0.875rem;
 }
 
 .field input,
@@ -120,6 +142,13 @@ select {
   border-radius: 10px;
   border: 1px solid #c5cfde;
   background: #ffffff;
+}
+
+.field input:disabled,
+.field select:disabled {
+  background: #f7f9fd;
+  color: #60708f;
+  cursor: not-allowed;
 }
 
 .button {
@@ -194,6 +223,27 @@ select {
   color: #60708f;
 }
 
+.empty-state > * + * {
+  margin-top: 8px;
+}
+
+.empty-state strong {
+  display: block;
+  color: #172033;
+  margin-bottom: 4px;
+}
+
+.empty-state p,
+.error-banner p,
+.success-banner p {
+  margin: 0;
+}
+
+.success-banner strong,
+.error-banner strong {
+  display: block;
+}
+
 .error-banner {
   background: #feecec;
   color: #a52a2a;
@@ -221,7 +271,20 @@ select {
   color: #43506b;
 }
 
+.tag.pending,
+.status-badge.pending,
+.status-badge.neutral {
+  background: #edf2fb;
+  color: #43506b;
+}
+
 .risk-pill.low {
+  background: #e7f7ec;
+  color: #257546;
+}
+
+.tag.completed,
+.status-badge.completed {
   background: #e7f7ec;
   color: #257546;
 }
@@ -231,7 +294,19 @@ select {
   color: #9a6507;
 }
 
+.tag.processing,
+.status-badge.processing {
+  background: #fff2dc;
+  color: #9a6507;
+}
+
 .risk-pill.high {
+  background: #fee5e5;
+  color: #a63333;
+}
+
+.tag.failed,
+.status-badge.failed {
   background: #fee5e5;
   color: #a63333;
 }
@@ -255,6 +330,43 @@ select {
   margin-bottom: 20px;
 }
 
+.analysis-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.8fr);
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #d7dfeb;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  margin-bottom: 20px;
+}
+
+.analysis-hero-main,
+.analysis-hero-stats {
+  display: grid;
+  gap: 16px;
+}
+
+.analysis-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.875rem;
+}
+
+.upload-panel {
+  border-color: #cfdaf4;
+  background: #fbfcff;
+}
+
 @media (max-width: 960px) {
   .topbar,
   .section-heading,
@@ -265,7 +377,8 @@ select {
 
   .two-columns,
   .stats-grid,
-  .detail-grid {
+  .detail-grid,
+  .analysis-hero {
     grid-template-columns: 1fr;
   }
 
