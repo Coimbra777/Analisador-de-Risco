@@ -9,7 +9,9 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 
+import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { JwtUserPayload } from '../../common/auth/jwt-user-payload.interface';
 import { UploadedPdfFile } from './interfaces/uploaded-pdf-file.interface';
 import { DocumentsService } from './documents.service';
 
@@ -20,10 +22,15 @@ export class DocumentsController {
 
   @Post()
   @UseInterceptors(FileInterceptor('file'))
-  upload(
+  uploadDocument(
     @Param('analysisId', ParseIntPipe) analysisId: number,
     @UploadedFile() file: UploadedPdfFile,
+    @CurrentUser() currentUser: JwtUserPayload,
   ) {
-    return this.documentsService.uploadDocumentForAnalysis(analysisId, file);
+    return this.documentsService.uploadForAnalysis(
+      analysisId,
+      file,
+      currentUser,
+    );
   }
 }

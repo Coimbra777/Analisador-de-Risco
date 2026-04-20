@@ -1,14 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { JwtUserPayload } from '../../common/auth/jwt-user-payload.interface';
-import { AnalysisStatus } from '../../database/enums/analysis-status.enum';
-import { Analysis, Company } from '../../database/entities';
+import {
+  ANALYSIS_MESSAGES,
+  COMPANY_MESSAGES,
+} from '../../common/http/api-messages';
 import {
   toAnalysisDetailResponse,
   toAnalysisListResponse,
-} from './analysis-response.mapper';
+} from '../../common/mappers/analysis-response.mapper';
+import { AnalysisStatus } from '../../database/enums/analysis-status.enum';
+import { Analysis, Company } from '../../database/entities';
 import { CreateAnalysisDto } from './dto/create-analysis.dto';
 
 @Injectable()
@@ -21,13 +29,10 @@ export class AnalysesService {
   ) {}
 
   async create(createAnalysisDto: CreateAnalysisDto, currentUser: JwtUserPayload) {
-    const company = await this.companiesRepository.findOne({
-      where: { id: createAnalysisDto.companyId },
-    });
-
-    if (!company) {
-      throw new NotFoundException('Company not found.');
-    }
+    const company = await this.getOwnedCompanyOrFail(
+      createAnalysisDto.companyId,
+      currentUser.sub,
+    );
 
     const analysis = this.analysesRepository.create({
       companyId: company.id,
@@ -37,11 +42,12 @@ export class AnalysesService {
 
     const savedAnalysis = await this.analysesRepository.save(analysis);
 
-    return this.findOne(savedAnalysis.id);
+    return this.findOne(savedAnalysis.id, currentUser);
   }
 
-  async findAll() {
+  async findAll(currentUser: JwtUserPayload) {
     const analyses = await this.analysesRepository.find({
+      where: { createdByUserId: currentUser.sub },
       relations: {
         company: true,
         createdBy: true,
@@ -52,7 +58,7 @@ export class AnalysesService {
     return analyses.map(toAnalysisListResponse);
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, currentUser: JwtUserPayload) {
     const analysis = await this.analysesRepository.findOne({
       where: { id },
       relations: {
@@ -64,9 +70,29 @@ export class AnalysesService {
     });
 
     if (!analysis) {
-      throw new NotFoundException('Analysis not found.');
+      throw new NotFoundException(ANALYSIS_MESSAGES.NOT_FOUND);
+    }
+
+    if (analysis.createdByUserId !== currentUser.sub) {
+      throw new ForbiddenException(ANALYSIS_MESSAGES.FORBIDDEN);
     }
 
     return toAnalysisDetailResponse(analysis);
+  }
+
+  private async getOwnedCompanyOrFail(companyId: number, userId: number) {
+    const company = await this.companiesRepository.findOne({
+      where: { id: companyId },
+    });
+
+    if (!company) {
+      throw new NotFoundException(COMPANY_MESSAGES.NOT_FOUND);
+    }
+
+    if (company.createdByUserId !== userId) {
+      throw new ForbiddenException(COMPANY_MESSAGES.FORBIDDEN);
+    }
+
+    return company;
   }
 }

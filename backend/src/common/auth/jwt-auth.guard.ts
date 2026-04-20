@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 
+import { AUTH_MESSAGES } from '../http/api-messages';
 import { JwtUserPayload } from './jwt-user-payload.interface';
 
 type AuthenticatedRequest = Request & {
@@ -22,7 +23,7 @@ export class JwtAuthGuard implements CanActivate {
     const token = this.extractBearerToken(request);
 
     if (!token) {
-      throw new UnauthorizedException('Missing or invalid bearer token.');
+      throw new UnauthorizedException(AUTH_MESSAGES.MISSING_BEARER_TOKEN);
     }
 
     try {
@@ -31,7 +32,7 @@ export class JwtAuthGuard implements CanActivate {
 
       return true;
     } catch {
-      throw new UnauthorizedException('Invalid or expired token.');
+      throw new UnauthorizedException(AUTH_MESSAGES.INVALID_OR_EXPIRED_TOKEN);
     }
   }
 

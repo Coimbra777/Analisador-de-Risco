@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
+import { COMMON_ERROR_MESSAGES } from '../http/api-messages';
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -45,7 +47,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   private getMessage(exception: unknown) {
     if (!(exception instanceof HttpException)) {
-      return 'Internal server error';
+      return COMMON_ERROR_MESSAGES.INTERNAL_SERVER_ERROR;
     }
 
     const response = exception.getResponse();
@@ -64,6 +66,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return responseBody.message;
     }
 
-    return 'Unexpected error';
+    return COMMON_ERROR_MESSAGES.UNEXPECTED_ERROR;
   }
 }

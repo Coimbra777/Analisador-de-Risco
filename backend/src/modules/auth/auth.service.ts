@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { compare, hash } from 'bcryptjs';
 import { Repository } from 'typeorm';
 
+import { AUTH_MESSAGES } from '../../common/http/api-messages';
 import { User } from '../../database/entities';
 import { LoginDto } from './dto/login.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
@@ -26,7 +27,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email is already in use.');
+      throw new ConflictException(AUTH_MESSAGES.EMAIL_ALREADY_IN_USE);
     }
 
     const passwordHash = await hash(registerUserDto.password, 10);
@@ -49,13 +50,13 @@ export class AuthService {
       .getOne();
 
     if (!user?.passwordHash) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException(AUTH_MESSAGES.INVALID_CREDENTIALS);
     }
 
     const passwordMatches = await compare(loginDto.password, user.passwordHash);
 
     if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException(AUTH_MESSAGES.INVALID_CREDENTIALS);
     }
 
     const accessToken = await this.jwtService.signAsync({

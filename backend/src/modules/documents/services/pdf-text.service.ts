@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { inflateSync } from 'node:zlib';
 import pdfParse from 'pdf-parse';
 
+const PDF_STREAM_REGEX = /<<([\s\S]*?)>>\s*stream\r?\n([\s\S]*?)endstream/g;
+const FILTER_VALUE_REGEX = /\/Filter\s*(\[[^\]]+\]|\/[A-Za-z0-9]+)/;
+const FILTER_NAME_REGEX = /\/([A-Za-z0-9]+)/g;
+const TEXT_OPERATOR_REGEX = /\((?:\\.|[^\\)])*\)\s*Tj/g;
+
 @Injectable()
 export class PdfTextService {
   async extractText(fileBuffer: Buffer): Promise<string> {
@@ -13,19 +18,21 @@ export class PdfTextService {
         return normalizedText;
       }
     } catch {
-      // Fall back to a simple stream decoder for basic text PDFs.
+      // Some simple PDFs fail in pdf-parse but still contain text drawing
+      // commands in deflated streams. This fallback keeps the MVP usable for
+      // common locally generated files without introducing a heavier parser.
     }
 
-    return this.extractTextFromPdfStreams(fileBuffer);
+    return this.extractTextFromSimpleTextStreams(fileBuffer);
   }
 
   private normalizeText(text: string): string {
     return text.replace(/\s+/g, ' ').trim();
   }
 
-  private extractTextFromPdfStreams(fileBuffer: Buffer): string {
+  private extractTextFromSimpleTextStreams(fileBuffer: Buffer): string {
     const pdfContent = fileBuffer.toString('latin1');
-    const streamMatches = [...pdfContent.matchAll(/<<([\s\S]*?)>>\s*stream\r?\n([\s\S]*?)endstream/g)];
+    const streamMatches = [...pdfContent.matchAll(PDF_STREAM_REGEX)];
     const extractedChunks: string[] = [];
 
     for (const [, dictionary, streamBody] of streamMatches) {
@@ -36,7 +43,9 @@ export class PdfTextService {
         continue;
       }
 
-      const text = this.extractTextOperators(decodedStream.toString('latin1'));
+      const text = this.extractTextFromTextOperators(
+        decodedStream.toString('latin1'),
+      );
 
       if (text) {
         extractedChunks.push(text);
@@ -47,13 +56,13 @@ export class PdfTextService {
   }
 
   private extractFilters(dictionary: string): string[] {
-    const filterMatch = dictionary.match(/\/Filter\s*(\[[^\]]+\]|\/[A-Za-z0-9]+)/);
+    const filterMatch = dictionary.match(FILTER_VALUE_REGEX);
 
     if (!filterMatch) {
       return [];
     }
 
-    return [...filterMatch[1].matchAll(/\/([A-Za-z0-9]+)/g)].map(([, filter]) => filter);
+    return [...filterMatch[1].matchAll(FILTER_NAME_REGEX)].map(([, filter]) => filter);
   }
 
   private decodeStream(streamBody: Buffer, filters: string[]) {
@@ -113,19 +122,19 @@ export class PdfTextService {
     return Buffer.from(bytes);
   }
 
-  private extractTextOperators(content: string): string {
-    const literalStrings = [...content.matchAll(/\((?:\\.|[^\\)])*\)\s*Tj/g)].map(([match]) =>
-      match.replace(/\)\s*Tj$/, ''),
+  private extractTextFromTextOperators(content: string): string {
+    const literalStrings = [...content.matchAll(TEXT_OPERATOR_REGEX)].map(
+      ([match]) => match.replace(/\)\s*Tj$/, ''),
     );
 
     const normalizedStrings = literalStrings
-      .map((value) => this.decodePdfLiteralString(value))
+      .map((value) => this.decodeLiteralPdfString(value))
       .filter(Boolean);
 
     return normalizedStrings.join(' ');
   }
 
-  private decodePdfLiteralString(value: string): string {
+  private decodeLiteralPdfString(value: string): string {
     let decoded = value.slice(1);
 
     decoded = decoded.replace(/\\([0-7]{1,3})/g, (_, octalValue: string) =>

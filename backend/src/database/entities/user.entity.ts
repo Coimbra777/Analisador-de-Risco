@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 import { Analysis } from './analysis.entity';
+import { Company } from './company.entity';
 
 @Entity({ name: 'users' })
 export class User {
@@ -21,6 +22,9 @@ export class User {
     select: false,
   })
   passwordHash!: string | null;
+
+  @OneToMany(() => Company, (company) => company.createdBy)
+  companies!: Company[];
 
   @OneToMany(() => Analysis, (analysis) => analysis.createdBy)
   analyses!: Analysis[];

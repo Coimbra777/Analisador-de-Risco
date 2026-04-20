@@ -2,6 +2,8 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { COMPANY_MESSAGES } from '../../common/http/api-messages';
+import { JwtUserPayload } from '../../common/auth/jwt-user-payload.interface';
 import { Company } from '../../database/entities';
 import { CreateCompanyDto } from './dto/create-company.dto';
 
@@ -12,16 +14,22 @@ export class CompaniesService {
     private readonly companiesRepository: Repository<Company>,
   ) {}
 
-  async create(createCompanyDto: CreateCompanyDto) {
+  async create(createCompanyDto: CreateCompanyDto, currentUser: JwtUserPayload) {
     const existingCompany = await this.companiesRepository.findOne({
-      where: { registrationNumber: createCompanyDto.registrationNumber },
+      where: {
+        createdByUserId: currentUser.sub,
+        registrationNumber: createCompanyDto.registrationNumber,
+      },
     });
 
     if (existingCompany) {
-      throw new ConflictException('Registration number is already in use.');
+      throw new ConflictException(
+        COMPANY_MESSAGES.REGISTRATION_NUMBER_ALREADY_IN_USE,
+      );
     }
 
     const company = this.companiesRepository.create({
+      createdByUserId: currentUser.sub,
       legalName: createCompanyDto.legalName,
       tradeName: createCompanyDto.tradeName ?? null,
       registrationNumber: createCompanyDto.registrationNumber,
@@ -33,8 +41,9 @@ export class CompaniesService {
     return this.toCompanyResponse(savedCompany);
   }
 
-  async findAll() {
+  async findAll(currentUser: JwtUserPayload) {
     const companies = await this.companiesRepository.find({
+      where: { createdByUserId: currentUser.sub },
       order: { createdAt: 'DESC' },
     });
 

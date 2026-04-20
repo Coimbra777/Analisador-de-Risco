@@ -28,12 +28,15 @@ export class AnalysesController {
   }
 
   @Get()
-  findAll() {
-    return this.analysesService.findAll();
+  findAll(@CurrentUser() currentUser: JwtUserPayload) {
+    return this.analysesService.findAll(currentUser);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.analysesService.findOne(id);
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser: JwtUserPayload,
+  ) {
+    return this.analysesService.findOne(id, currentUser);
   }
 }

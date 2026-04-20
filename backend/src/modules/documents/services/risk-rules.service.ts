@@ -53,53 +53,65 @@ const ATTENTION_TERMS = [
   'paralisação',
 ];
 
+type RiskMatches = {
+  criticalTerms: string[];
+  attentionTerms: string[];
+};
+
 @Injectable()
 export class RiskRulesService {
   classify(text: string): RiskClassificationResult {
     const normalizedText = text.trim().toLowerCase();
-    const hasReadableText = normalizedText.length > 0;
-    const criticalMatches = this.findMatches(normalizedText, CRITICAL_TERMS);
-    const attentionMatches = this.findMatches(normalizedText, ATTENTION_TERMS);
-    const findings = this.buildFindings(criticalMatches, attentionMatches);
-    const riskLevel = this.calculateRiskLevel(criticalMatches, attentionMatches);
-    const summaryText = this.buildSummary(
-      hasReadableText,
-      riskLevel,
-      criticalMatches,
-      attentionMatches,
-    );
+    const matches = this.findRiskMatches(normalizedText);
+    const riskLevel = this.determineRiskLevel(matches);
 
     return {
       riskLevel,
-      summaryText,
-      findings,
+      summaryText: this.buildSummary(riskLevel, matches),
+      findings: this.buildFindings(matches),
     };
   }
 
-  private findMatches(text: string, terms: string[]) {
+  private findRiskMatches(text: string): RiskMatches {
+    return {
+      criticalTerms: this.findMatchedTerms(text, CRITICAL_TERMS),
+      attentionTerms: this.findMatchedTerms(text, ATTENTION_TERMS),
+    };
+  }
+
+  private findMatchedTerms(text: string, terms: string[]) {
     return [...new Set(terms.filter((term) => text.includes(term)))];
   }
 
-  private buildFindings(
-    criticalMatches: string[],
-    attentionMatches: string[],
-  ): ClassifiedRiskFinding[] {
+  private determineRiskLevel(matches: RiskMatches): AnalysisRiskLevel {
+    if (matches.criticalTerms.length > 0) {
+      return AnalysisRiskLevel.HIGH;
+    }
+
+    if (matches.attentionTerms.length > 0) {
+      return AnalysisRiskLevel.MEDIUM;
+    }
+
+    return AnalysisRiskLevel.LOW;
+  }
+
+  private buildFindings(matches: RiskMatches): ClassifiedRiskFinding[] {
     const findings: ClassifiedRiskFinding[] = [];
 
-    if (criticalMatches.length > 0) {
+    if (matches.criticalTerms.length > 0) {
       findings.push({
         code: 'critical-terms',
         title: 'Critical risk terms found',
-        description: `Matched terms: ${criticalMatches.join(', ')}.`,
+        description: `Matched terms: ${matches.criticalTerms.join(', ')}.`,
         severity: RiskSeverity.HIGH,
       });
     }
 
-    if (attentionMatches.length > 0) {
+    if (matches.attentionTerms.length > 0) {
       findings.push({
         code: 'attention-terms',
         title: 'Attention terms found',
-        description: `Matched terms: ${attentionMatches.join(', ')}.`,
+        description: `Matched terms: ${matches.attentionTerms.join(', ')}.`,
         severity: RiskSeverity.MEDIUM,
       });
     }
@@ -108,38 +120,17 @@ export class RiskRulesService {
   }
 
   private buildSummary(
-    hasReadableText: boolean,
     riskLevel: AnalysisRiskLevel,
-    criticalMatches: string[],
-    attentionMatches: string[],
+    matches: RiskMatches,
   ): string {
-    if (!hasReadableText) {
-      return 'No readable text could be extracted from the PDF.';
-    }
-
     if (riskLevel === AnalysisRiskLevel.HIGH) {
-      return `Critical terms found: ${criticalMatches.join(', ')}.`;
+      return `Critical terms found: ${matches.criticalTerms.join(', ')}.`;
     }
 
     if (riskLevel === AnalysisRiskLevel.MEDIUM) {
-      return `Attention terms found: ${attentionMatches.join(', ')}.`;
+      return `Attention terms found: ${matches.attentionTerms.join(', ')}.`;
     }
 
     return 'No relevant risk terms were found in the document.';
-  }
-
-  private calculateRiskLevel(
-    criticalMatches: string[],
-    attentionMatches: string[],
-  ): AnalysisRiskLevel {
-    if (criticalMatches.length > 0) {
-      return AnalysisRiskLevel.HIGH;
-    }
-
-    if (attentionMatches.length > 0) {
-      return AnalysisRiskLevel.MEDIUM;
-    }
-
-    return AnalysisRiskLevel.LOW;
   }
 }

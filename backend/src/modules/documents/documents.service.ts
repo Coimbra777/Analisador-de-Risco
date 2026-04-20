@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,11 +9,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { extname } from 'node:path';
 import { EntityManager, Repository } from 'typeorm';
 
-import { AnalysisRiskLevel } from '../../database/enums/analysis-risk-level.enum';
+import { JwtUserPayload } from '../../common/auth/jwt-user-payload.interface';
+import {
+  ANALYSIS_MESSAGES,
+  DOCUMENT_MESSAGES,
+} from '../../common/http/api-messages';
+import { toAnalysisDetailResponse } from '../../common/mappers/analysis-response.mapper';
 import { AnalysisStatus } from '../../database/enums/analysis-status.enum';
 import { DocumentStatus } from '../../database/enums/document-status.enum';
 import { Analysis, Document, RiskFinding } from '../../database/entities';
-import { toAnalysisDetailResponse } from '../analyses/analysis-response.mapper';
 import { UploadedPdfFile } from './interfaces/uploaded-pdf-file.interface';
 import { RiskClassificationResult } from './interfaces/risk-classification-result.interface';
 import { FileStorageService } from './services/file-storage.service';
@@ -32,52 +37,72 @@ export class DocumentsService {
     private readonly riskRulesService: RiskRulesService,
   ) {}
 
-  async uploadDocumentForAnalysis(analysisId: number, file: UploadedPdfFile) {
-    this.validateFile(file);
+  async uploadForAnalysis(
+    analysisId: number,
+    file: UploadedPdfFile,
+    currentUser: JwtUserPayload,
+  ) {
+    this.validateUploadedFile(file);
 
-    const analysis = await this.getAnalysisOrFail(analysisId);
+    const analysis = await this.loadOwnedAnalysisOrFail(analysisId, currentUser.sub);
     await this.markAnalysisAsProcessing(analysis.id);
 
-    let savedDocumentId: number | null = null;
+    let documentId: number | null = null;
 
     try {
       const storageKey = await this.fileStorageService.savePdf(file, analysisId);
-      savedDocumentId = await this.createDocumentRecord(
-        analysis,
+      documentId = await this.saveDocumentMetadata(
+        analysis.id,
         file,
         storageKey,
       );
+      const savedDocumentId = documentId;
 
-      const extractedText = await this.pdfTextService.extractText(file.buffer);
-      const classification = this.riskRulesService.classify(extractedText);
+      const classification = await this.classifyUploadedDocument(file.buffer);
 
-      await this.finishSuccessfulProcessing(
-        analysis.id,
-        savedDocumentId,
-        classification,
+      await this.documentsRepository.manager.transaction((manager) =>
+        this.completeSuccessfulProcessing(
+          manager,
+          analysis.id,
+          savedDocumentId,
+          classification,
+        ),
       );
     } catch (error) {
-      await this.finishFailedProcessing(analysis.id, savedDocumentId);
+      await this.documentsRepository.manager.transaction((manager) =>
+        this.completeFailedProcessing(manager, analysis.id, documentId),
+      );
 
       throw error;
     }
 
-    const updatedAnalysis = await this.loadAnalysisDetail(analysis.id);
+    const updatedAnalysis = await this.loadAnalysisDetail(analysis.id, currentUser.sub);
 
     return {
-      message: 'Document uploaded and analysis processed successfully.',
+      message: DOCUMENT_MESSAGES.UPLOAD_SUCCESS,
       analysis: toAnalysisDetailResponse(updatedAnalysis),
     };
   }
 
-  private async getAnalysisOrFail(analysisId: number) {
+  private async loadOwnedAnalysisOrFail(analysisId: number, userId: number) {
     const analysis = await this.analysesRepository.findOneBy({ id: analysisId });
 
     if (!analysis) {
-      throw new NotFoundException('Analysis not found.');
+      throw new NotFoundException(ANALYSIS_MESSAGES.NOT_FOUND);
+    }
+
+    if (analysis.createdByUserId !== userId) {
+      throw new ForbiddenException(ANALYSIS_MESSAGES.FORBIDDEN);
     }
 
     return analysis;
+  }
+
+  private async classifyUploadedDocument(fileBuffer: Buffer) {
+    const extractedText = await this.pdfTextService.extractText(fileBuffer);
+    this.assertReadableText(extractedText);
+
+    return this.riskRulesService.classify(extractedText);
   }
 
   private async markAnalysisAsProcessing(analysisId: number) {
@@ -87,13 +112,13 @@ export class DocumentsService {
     });
   }
 
-  private async createDocumentRecord(
-    analysis: Analysis,
+  private async saveDocumentMetadata(
+    analysisId: number,
     file: UploadedPdfFile,
     storageKey: string,
   ): Promise<number> {
     const document = this.documentsRepository.create({
-      analysis,
+      analysis: { id: analysisId } as Analysis,
       originalFilename: file.originalname,
       mimeType: file.mimetype,
       storageKey,
@@ -106,28 +131,9 @@ export class DocumentsService {
     return savedDocument.id;
   }
 
-  private async finishSuccessfulProcessing(
-    analysisId: number,
-    documentId: number,
-    classification: RiskClassificationResult,
-  ) {
-    await this.documentsRepository.manager.transaction((manager) =>
-      this.applySuccessfulProcessing(manager, analysisId, documentId, classification),
-    );
-  }
-
-  private async finishFailedProcessing(
-    analysisId: number,
-    documentId: number | null,
-  ) {
-    await this.documentsRepository.manager.transaction((manager) =>
-      this.applyFailedProcessing(manager, analysisId, documentId),
-    );
-  }
-
-  private async loadAnalysisDetail(analysisId: number) {
+  private async loadAnalysisDetail(analysisId: number, userId: number) {
     const analysis = await this.analysesRepository.findOne({
-      where: { id: analysisId },
+      where: { id: analysisId, createdByUserId: userId },
       relations: {
         company: true,
         createdBy: true,
@@ -137,13 +143,13 @@ export class DocumentsService {
     });
 
     if (!analysis) {
-      throw new NotFoundException('Analysis not found.');
+      throw new NotFoundException(ANALYSIS_MESSAGES.NOT_FOUND);
     }
 
     return analysis;
   }
 
-  private async applySuccessfulProcessing(
+  private async completeSuccessfulProcessing(
     manager: EntityManager,
     analysisId: number,
     documentId: number,
@@ -179,7 +185,7 @@ export class DocumentsService {
     });
   }
 
-  private async applyFailedProcessing(
+  private async completeFailedProcessing(
     manager: EntityManager,
     analysisId: number,
     documentId: number | null,
@@ -190,36 +196,57 @@ export class DocumentsService {
       });
     }
 
+    await manager.getRepository(RiskFinding).delete({
+      analysisId,
+    });
+
     await manager.getRepository(Analysis).update(analysisId, {
       status: AnalysisStatus.FAILED,
-      riskLevel: AnalysisRiskLevel.HIGH,
-      summaryText: 'The document could not be processed successfully.',
+      riskLevel: null,
+      summaryText: DOCUMENT_MESSAGES.PROCESSING_FAILED,
       completedAt: new Date(),
     });
   }
 
-  private validateFile(file: UploadedPdfFile | undefined): asserts file is UploadedPdfFile {
+  private assertReadableText(text: string) {
+    if (text.trim().length === 0) {
+      throw new BadRequestException(DOCUMENT_MESSAGES.UNREADABLE_PDF);
+    }
+  }
+
+  private validateUploadedFile(file: UploadedPdfFile | undefined): asserts file is UploadedPdfFile {
     if (!file) {
-      throw new BadRequestException('A PDF file is required.');
+      throw new BadRequestException(DOCUMENT_MESSAGES.PDF_REQUIRED);
     }
 
+    this.assertPdfFile(file);
+    this.assertFileSizeWithinLimit(file);
+  }
+
+  private assertPdfFile(file: UploadedPdfFile) {
+    if (file.mimetype === 'application/pdf') {
+      return;
+    }
+
+    const fileExtension = extname(file.originalname).toLowerCase();
+
+    if (fileExtension !== '.pdf') {
+      throw new BadRequestException(DOCUMENT_MESSAGES.PDF_ONLY);
+    }
+  }
+
+  private assertFileSizeWithinLimit(file: UploadedPdfFile) {
     const maxFileSizeBytes = this.configService.get<number>(
       'storage.maxFileSizeBytes',
       5 * 1024 * 1024,
     );
 
-    if (file.mimetype !== 'application/pdf') {
-      const fileExtension = extname(file.originalname).toLowerCase();
-
-      if (fileExtension !== '.pdf') {
-        throw new BadRequestException('Only PDF files are allowed.');
-      }
+    if (file.size <= maxFileSizeBytes) {
+      return;
     }
 
-    if (file.size > maxFileSizeBytes) {
-      throw new BadRequestException(
-        `File exceeds maximum size of ${maxFileSizeBytes} bytes.`,
-      );
-    }
+    throw new BadRequestException(
+      `The file exceeds the maximum size of ${maxFileSizeBytes} bytes.`,
+    );
   }
 }

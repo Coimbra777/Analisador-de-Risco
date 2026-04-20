@@ -1,11 +1,29 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 import { Analysis } from './analysis.entity';
+import { User } from './user.entity';
 
+@Index('IDX_COMPANIES_CREATED_BY_USER_ID', ['createdByUserId'])
+@Index('UQ_COMPANIES_USER_REGISTRATION_NUMBER', ['createdByUserId', 'registrationNumber'], {
+  unique: true,
+})
 @Entity({ name: 'companies' })
 export class Company {
   @PrimaryGeneratedColumn()
   id!: number;
+
+  @Column({ name: 'created_by_user_id', type: 'int' })
+  createdByUserId!: number;
 
   @Column({ name: 'legal_name', type: 'varchar', length: 255 })
   legalName!: string;
@@ -18,6 +36,13 @@ export class Company {
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   country!: string | null;
+
+  @ManyToOne(() => User, (user) => user.companies, {
+    nullable: false,
+    onDelete: 'RESTRICT',
+  })
+  @JoinColumn({ name: 'created_by_user_id' })
+  createdBy!: User;
 
   @OneToMany(() => Analysis, (analysis) => analysis.company)
   analyses!: Analysis[];
