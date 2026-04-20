@@ -5,7 +5,6 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
-  RelationId,
   UpdateDateColumn,
 } from 'typeorm';
 
@@ -40,7 +39,7 @@ export class RiskFinding {
   @JoinColumn({ name: 'analysis_id' })
   analysis!: Analysis;
 
-  @RelationId((riskFinding: RiskFinding) => riskFinding.analysis)
+  @Column({ name: 'analysis_id', type: 'int' })
   analysisId!: number;
 
   @CreateDateColumn({ name: 'created_at' })
