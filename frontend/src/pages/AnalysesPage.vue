@@ -3,8 +3,8 @@
     <section class="panel">
       <div class="section-heading">
         <div>
-          <h2>Create analysis</h2>
-          <p class="muted">Choose a company and create a new analysis.</p>
+          <h2>Criar análise</h2>
+          <p class="muted">Escolha uma empresa e crie uma nova análise.</p>
         </div>
       </div>
 
@@ -21,40 +21,40 @@
     <section class="panel">
       <div class="section-heading">
         <div>
-          <h2>Analyses</h2>
-          <p class="muted">Current analyses from the API.</p>
+          <h2>Análises</h2>
+          <p class="muted">Análises atuais vindas da API.</p>
         </div>
         <button class="button secondary" type="button" @click="loadData">
-          Refresh
+          Atualizar
         </button>
       </div>
 
-      <div v-if="loading" class="empty-state">Loading analyses...</div>
+      <div v-if="loading" class="empty-state">Carregando análises...</div>
       <div v-else-if="analyses.length === 0" class="empty-state">
-        No analyses created yet.
+        Nenhuma análise criada ainda.
       </div>
 
       <div v-else class="stack-md">
         <article v-for="analysis in analyses" :key="analysis.id" class="list-card">
           <div class="card-header">
             <div>
-              <h3>Analysis #{{ analysis.id }}</h3>
+              <h3>Análise #{{ analysis.id }}</h3>
               <p class="muted">
-                {{ analysis.company.legalName }} · {{ analysis.status }}
+                {{ analysis.company.legalName }} · {{ formatStatusLabel(analysis.status) }}
               </p>
             </div>
             <span class="risk-pill" :class="analysis.riskLevel || 'pending'">
-              {{ analysis.riskLevel || 'pending' }}
+              {{ formatRiskLabel(analysis.riskLevel) }}
             </span>
           </div>
 
-          <p>{{ analysis.summaryText || 'No summary generated yet.' }}</p>
+          <p>{{ analysis.summaryText || 'Nenhum resumo gerado ainda.' }}</p>
 
           <RouterLink
             class="button secondary inline-button"
             :to="{ name: 'analysis-detail', params: { id: analysis.id } }"
           >
-            View details
+            Ver detalhes
           </RouterLink>
         </article>
       </div>
@@ -70,6 +70,7 @@ import AnalysisForm from '@/components/AnalysisForm.vue';
 import { createAnalysis, fetchAnalyses } from '@/services/analyses';
 import { fetchCompanies } from '@/services/companies';
 import type { AnalysisListItem, Company } from '@/types/models';
+import { formatRiskLabel, formatStatusLabel } from '@/utils/risk';
 
 const router = useRouter();
 
@@ -95,7 +96,7 @@ async function loadData() {
     companies.value = nextCompanies;
     analyses.value = nextAnalyses;
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, 'Unable to load analyses.');
+    errorMessage.value = getErrorMessage(error, 'Não foi possível carregar as análises.');
   } finally {
     loading.value = false;
   }
@@ -107,11 +108,11 @@ async function handleCreateAnalysis(payload: { companyId: number }) {
     errorMessage.value = '';
     message.value = '';
     const analysis = await createAnalysis(payload);
-    message.value = 'Analysis created successfully.';
+    message.value = 'Análise criada com sucesso.';
     await loadData();
     router.push({ name: 'analysis-detail', params: { id: analysis.id } });
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, 'Unable to create analysis.');
+    errorMessage.value = getErrorMessage(error, 'Não foi possível criar a análise.');
   } finally {
     creating.value = false;
   }

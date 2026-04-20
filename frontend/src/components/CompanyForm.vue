@@ -1,17 +1,17 @@
 <template>
   <form class="stack-md" @submit.prevent="handleSubmit">
     <div class="field">
-      <label for="legalName">Legal name</label>
+      <label for="legalName">Razão social</label>
       <input id="legalName" v-model="form.legalName" required type="text" />
     </div>
 
     <div class="field">
-      <label for="tradeName">Trade name</label>
+      <label for="tradeName">Nome fantasia</label>
       <input id="tradeName" v-model="form.tradeName" type="text" />
     </div>
 
     <div class="field">
-      <label for="registrationNumber">Registration number</label>
+      <label for="registrationNumber">Número de registro</label>
       <input
         id="registrationNumber"
         v-model="form.registrationNumber"
@@ -21,12 +21,12 @@
     </div>
 
     <div class="field">
-      <label for="country">Country</label>
+      <label for="country">País</label>
       <input id="country" v-model="form.country" type="text" />
     </div>
 
     <button class="button" :disabled="loading" type="submit">
-      {{ loading ? 'Saving...' : 'Create company' }}
+      {{ loading ? 'Salvando...' : 'Criar empresa' }}
     </button>
   </form>
 </template>

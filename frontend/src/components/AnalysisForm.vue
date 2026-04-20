@@ -1,9 +1,9 @@
 <template>
   <form class="stack-md" @submit.prevent="handleSubmit">
     <div class="field">
-      <label for="companyId">Company</label>
+      <label for="companyId">Empresa</label>
       <select id="companyId" v-model.number="selectedCompanyId" required>
-        <option disabled value="0">Select a company</option>
+        <option disabled value="0">Selecione uma empresa</option>
         <option v-for="company in companies" :key="company.id" :value="company.id">
           {{ company.legalName }} ({{ company.registrationNumber }})
         </option>
@@ -11,7 +11,7 @@
     </div>
 
     <button class="button" :disabled="loading || companies.length === 0" type="submit">
-      {{ loading ? 'Creating...' : 'Create analysis' }}
+      {{ loading ? 'Criando...' : 'Criar análise' }}
     </button>
   </form>
 </template>

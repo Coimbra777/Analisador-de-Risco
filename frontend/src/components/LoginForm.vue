@@ -1,7 +1,7 @@
 <template>
   <form class="stack-md" @submit.prevent="handleSubmit">
     <div v-if="mode === 'register'" class="field">
-      <label for="name">Name</label>
+      <label for="name">Nome</label>
       <input id="name" v-model="form.name" required type="text" />
     </div>
 
@@ -11,7 +11,7 @@
     </div>
 
     <div class="field">
-      <label for="password">Password</label>
+      <label for="password">Senha</label>
       <input
         id="password"
         v-model="form.password"
@@ -22,7 +22,7 @@
     </div>
 
     <button class="button" :disabled="loading" type="submit">
-      {{ loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create account' }}
+      {{ loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta' }}
     </button>
   </form>
 </template>

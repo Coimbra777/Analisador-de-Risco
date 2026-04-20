@@ -3,29 +3,29 @@
     <section class="panel">
       <div class="section-heading">
         <div>
-          <h2>Analysis detail</h2>
-          <p class="muted">Summary, score, findings and document upload.</p>
+          <h2>Detalhe da análise</h2>
+          <p class="muted">Resumo, score, achados e envio de documento.</p>
         </div>
         <RouterLink class="button secondary inline-button" :to="{ name: 'analyses' }">
-          Back to analyses
+          Voltar para análises
         </RouterLink>
       </div>
 
-      <div v-if="loading" class="empty-state">Loading analysis...</div>
+      <div v-if="loading" class="empty-state">Carregando análise...</div>
       <p v-else-if="errorMessage" class="error-banner">{{ errorMessage }}</p>
 
       <template v-else-if="analysis">
         <div class="stats-grid">
           <div class="stat-card">
-            <span class="muted">Analysis</span>
+            <span class="muted">Análise</span>
             <strong>#{{ analysis.id }}</strong>
           </div>
           <div class="stat-card">
             <span class="muted">Status</span>
-            <strong>{{ analysis.status }}</strong>
+            <strong>{{ formatStatusLabel(analysis.status) }}</strong>
           </div>
           <div class="stat-card">
-            <span class="muted">Risk level</span>
+            <span class="muted">Nível de risco</span>
             <strong>{{ riskLabel }}</strong>
           </div>
           <div class="stat-card">
@@ -36,30 +36,30 @@
 
         <div class="detail-grid">
           <section class="panel nested-panel">
-            <h3>Company</h3>
+            <h3>Empresa</h3>
             <p>{{ analysis.company.legalName }}</p>
             <p class="muted">{{ analysis.company.registrationNumber }}</p>
           </section>
 
           <section class="panel nested-panel">
-            <h3>Summary</h3>
-            <p>{{ analysis.summaryText || 'No summary available yet.' }}</p>
+            <h3>Resumo</h3>
+            <p>{{ analysis.summaryText || 'Nenhum resumo disponível ainda.' }}</p>
           </section>
         </div>
 
         <section class="panel nested-panel">
-          <h3>Upload document</h3>
+          <h3>Enviar documento</h3>
           <p class="muted">
-            Send a PDF to trigger the local processing flow in the backend.
+            Envie um PDF para disparar o fluxo local de processamento no backend.
           </p>
           <p v-if="uploadMessage" class="success-banner">{{ uploadMessage }}</p>
           <DocumentUploadForm :loading="uploading" @submit="handleUpload" />
         </section>
 
         <section class="panel nested-panel">
-          <h3>Documents</h3>
+          <h3>Documentos</h3>
           <div v-if="analysis.documents.length === 0" class="empty-state">
-            No documents uploaded yet.
+            Nenhum documento enviado ainda.
           </div>
           <div v-else class="stack-md">
             <article
@@ -70,16 +70,16 @@
               <div class="card-header">
                 <div>
                   <h4>{{ document.originalFilename }}</h4>
-                  <p class="muted">{{ document.storageKey || 'Local storage' }}</p>
+                  <p class="muted">{{ document.storageKey || 'Armazenamento local' }}</p>
                 </div>
-                <span class="tag">{{ document.status }}</span>
+                <span class="tag">{{ formatStatusLabel(document.status) }}</span>
               </div>
             </article>
           </div>
         </section>
 
         <section class="panel nested-panel">
-          <h3>Findings</h3>
+          <h3>Achados</h3>
           <FindingsList :findings="analysis.riskFindings" />
         </section>
       </template>
@@ -96,7 +96,7 @@ import FindingsList from '@/components/FindingsList.vue';
 import { fetchAnalysisDetail } from '@/services/analyses';
 import { uploadAnalysisDocument } from '@/services/documents';
 import type { AnalysisDetail } from '@/types/models';
-import { calculateRiskScore, formatRiskLabel } from '@/utils/risk';
+import { calculateRiskScore, formatRiskLabel, formatStatusLabel } from '@/utils/risk';
 
 const props = defineProps<{
   id: string;
@@ -114,7 +114,7 @@ const riskScore = computed(() =>
     : 0,
 );
 const riskLabel = computed(() =>
-  analysis.value ? formatRiskLabel(analysis.value.riskLevel) : 'Pending',
+  analysis.value ? formatRiskLabel(analysis.value.riskLevel) : 'Pendente',
 );
 
 onMounted(() => {
@@ -127,7 +127,7 @@ async function loadAnalysis() {
     errorMessage.value = '';
     analysis.value = await fetchAnalysisDetail(Number(props.id));
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, 'Unable to load analysis.');
+    errorMessage.value = getErrorMessage(error, 'Não foi possível carregar a análise.');
   } finally {
     loading.value = false;
   }
@@ -142,7 +142,7 @@ async function handleUpload(file: File) {
     analysis.value = response.analysis;
     uploadMessage.value = response.message;
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, 'Unable to upload document.');
+    errorMessage.value = getErrorMessage(error, 'Não foi possível enviar o documento.');
   } finally {
     uploading.value = false;
   }

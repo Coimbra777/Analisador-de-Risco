@@ -2,8 +2,8 @@
   <div class="auth-page">
     <section class="auth-card">
       <div class="stack-sm">
-        <h2>Login</h2>
-        <p class="muted">Use your account to access companies, analyses and uploads.</p>
+        <h2>Entrar</h2>
+        <p class="muted">Use sua conta para acessar empresas, análises e uploads.</p>
       </div>
 
       <p v-if="errorMessage" class="error-banner">{{ errorMessage }}</p>
@@ -12,8 +12,8 @@
       <div class="divider"></div>
 
       <div class="stack-sm">
-        <h3>Create a user</h3>
-        <p class="muted">Useful for the first local run of the MVP.</p>
+        <h3>Criar usuário</h3>
+        <p class="muted">Útil para a primeira execução local do MVP.</p>
       </div>
 
       <LoginForm :loading="registering" mode="register" @submit="handleRegister" />
@@ -44,7 +44,7 @@ async function handleLogin(payload: { email: string; password: string }) {
     setSession(response.accessToken, response.user);
     router.push({ name: 'companies' });
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, 'Unable to login.');
+    errorMessage.value = getErrorMessage(error, 'Não foi possível entrar.');
   } finally {
     loading.value = false;
   }
@@ -63,9 +63,9 @@ async function handleRegister(payload: {
       email: payload.email,
       password: payload.password,
     });
-    errorMessage.value = 'User created successfully. You can now login.';
+    errorMessage.value = 'Usuário criado com sucesso. Agora você já pode entrar.';
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, 'Unable to create user.');
+    errorMessage.value = getErrorMessage(error, 'Não foi possível criar o usuário.');
   } finally {
     registering.value = false;
   }

@@ -13,6 +13,7 @@ import { AnalysisStatus } from '../../database/enums/analysis-status.enum';
 import { DocumentStatus } from '../../database/enums/document-status.enum';
 import { Analysis, Document, RiskFinding } from '../../database/entities';
 import { UploadedPdfFile } from './interfaces/uploaded-pdf-file.interface';
+import { RiskClassificationResult } from './interfaces/risk-classification-result.interface';
 import { LocalFileStorageService } from './services/local-file-storage.service';
 import { PdfTextExtractorService } from './services/pdf-text-extractor.service';
 import { RiskClassificationService } from './services/risk-classification.service';
@@ -39,75 +40,33 @@ export class DocumentsService {
 
     this.validatePdfFile(file);
 
-    const analysis = await this.analysesRepository.findOne({
-      where: { id: analysisId },
-      relations: {
-        company: true,
-        createdBy: true,
-        documents: true,
-        riskFindings: true,
-      },
-    });
+    const analysis = await this.analysesRepository.findOneBy({ id: analysisId });
 
     if (!analysis) {
       throw new NotFoundException('Analysis not found.');
     }
 
-    analysis.status = AnalysisStatus.IN_PROGRESS;
-    analysis.completedAt = null;
-    await this.analysesRepository.save(analysis);
-
-    const savedFile = await this.localFileStorageService.savePdf(file, analysisId);
-
-    const document = this.documentsRepository.create({
-      analysisId,
-      originalFilename: file.originalname,
-      mimeType: file.mimetype,
-      storageKey: savedFile.relativePath,
-      fileSizeBytes: file.size,
-      status: DocumentStatus.PENDING,
+    await this.analysesRepository.update(analysisId, {
+      status: AnalysisStatus.IN_PROGRESS,
+      completedAt: null,
     });
 
-    const savedDocument = await this.documentsRepository.save(document);
+    const savedFile = await this.localFileStorageService.savePdf(file, analysisId);
+    let savedDocumentId: number | null = null;
 
     try {
+      savedDocumentId = await this.insertDocumentRecord(analysisId, file, savedFile.relativePath);
+
       const extractedText = await this.pdfTextExtractorService.extractText(file.buffer);
       const classification = this.riskClassificationService.classify(extractedText);
 
-      savedDocument.status = DocumentStatus.AVAILABLE;
-      await this.documentsRepository.save(savedDocument);
-
-      await this.riskFindingsRepository.delete({ analysisId });
-
-      if (classification.findings.length > 0) {
-        const riskFindings = classification.findings.map((finding) =>
-          this.riskFindingsRepository.create({
-            analysisId,
-            code: finding.code,
-            title: finding.title,
-            description: finding.description,
-            severity: finding.severity,
-          }),
-        );
-
-        await this.riskFindingsRepository.save(riskFindings);
-      }
-
-      analysis.status = AnalysisStatus.COMPLETED;
-      analysis.riskLevel = classification.riskLevel;
-      analysis.summaryText = classification.summaryText;
-      analysis.completedAt = new Date();
-      await this.analysesRepository.save(analysis);
+      await this.persistSuccessfulProcessing(
+        analysisId,
+        savedDocumentId,
+        classification,
+      );
     } catch (error) {
-      savedDocument.status = DocumentStatus.FAILED;
-      await this.documentsRepository.save(savedDocument);
-
-      analysis.status = AnalysisStatus.FAILED;
-      analysis.riskLevel = AnalysisRiskLevel.HIGH;
-      analysis.summaryText =
-        'The document could not be processed successfully.';
-      analysis.completedAt = new Date();
-      await this.analysesRepository.save(analysis);
+      await this.persistFailedProcessing(analysisId, savedDocumentId);
 
       throw error;
     }
@@ -126,6 +85,125 @@ export class DocumentsService {
       message: 'Document uploaded and analysis processed successfully.',
       analysis: updatedAnalysis,
     };
+  }
+
+  private async insertDocumentRecord(
+    analysisId: number,
+    file: UploadedPdfFile,
+    storageKey: string,
+  ): Promise<number> {
+    const result = (await this.documentsRepository.query(
+      `
+        INSERT INTO documents (
+          analysis_id,
+          original_filename,
+          mime_type,
+          storage_key,
+          file_size_bytes,
+          status
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      [
+        analysisId,
+        file.originalname,
+        file.mimetype,
+        storageKey,
+        file.size,
+        DocumentStatus.PENDING,
+      ],
+    )) as { insertId?: number };
+
+    const documentId = Number(result.insertId);
+
+    if (!documentId) {
+      throw new Error('Failed to persist document record.');
+    }
+
+    return documentId;
+  }
+
+  private async persistSuccessfulProcessing(
+    analysisId: number,
+    documentId: number,
+    classification: RiskClassificationResult,
+  ) {
+    await this.documentsRepository.manager.transaction(async (manager) => {
+      await manager.query('UPDATE documents SET status = ? WHERE id = ?', [
+        DocumentStatus.AVAILABLE,
+        documentId,
+      ]);
+
+      await manager.query('DELETE FROM risk_findings WHERE analysis_id = ?', [
+        analysisId,
+      ]);
+
+      for (const finding of classification.findings) {
+        await manager.query(
+          `
+            INSERT INTO risk_findings (
+              analysis_id,
+              code,
+              title,
+              description,
+              severity
+            )
+            VALUES (?, ?, ?, ?, ?)
+          `,
+          [
+            analysisId,
+            finding.code,
+            finding.title,
+            finding.description,
+            finding.severity,
+          ],
+        );
+      }
+
+      await manager.query(
+        `
+          UPDATE analyses
+          SET status = ?, risk_level = ?, summary_text = ?, completed_at = ?
+          WHERE id = ?
+        `,
+        [
+          AnalysisStatus.COMPLETED,
+          classification.riskLevel,
+          classification.summaryText,
+          new Date(),
+          analysisId,
+        ],
+      );
+    });
+  }
+
+  private async persistFailedProcessing(
+    analysisId: number,
+    documentId: number | null,
+  ) {
+    await this.documentsRepository.manager.transaction(async (manager) => {
+      if (documentId) {
+        await manager.query('UPDATE documents SET status = ? WHERE id = ?', [
+          DocumentStatus.FAILED,
+          documentId,
+        ]);
+      }
+
+      await manager.query(
+        `
+          UPDATE analyses
+          SET status = ?, risk_level = ?, summary_text = ?, completed_at = ?
+          WHERE id = ?
+        `,
+        [
+          AnalysisStatus.FAILED,
+          AnalysisRiskLevel.HIGH,
+          'The document could not be processed successfully.',
+          new Date(),
+          analysisId,
+        ],
+      );
+    });
   }
 
   private validatePdfFile(file: UploadedPdfFile) {

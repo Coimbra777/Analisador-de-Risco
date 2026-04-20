@@ -3,8 +3,8 @@
     <section class="panel">
       <div class="section-heading">
         <div>
-          <h2>Companies</h2>
-          <p class="muted">Register suppliers before creating analyses.</p>
+          <h2>Empresas</h2>
+          <p class="muted">Cadastre fornecedores antes de criar análises.</p>
         </div>
       </div>
 
@@ -17,17 +17,17 @@
     <section class="panel">
       <div class="section-heading">
         <div>
-          <h2>Registered companies</h2>
-          <p class="muted">Simple list from the backend API.</p>
+          <h2>Empresas cadastradas</h2>
+          <p class="muted">Listagem simples vinda da API do backend.</p>
         </div>
         <button class="button secondary" type="button" @click="loadCompanies">
-          Refresh
+          Atualizar
         </button>
       </div>
 
-      <div v-if="loading" class="empty-state">Loading companies...</div>
+      <div v-if="loading" class="empty-state">Carregando empresas...</div>
       <div v-else-if="companies.length === 0" class="empty-state">
-        No companies created yet.
+        Nenhuma empresa cadastrada ainda.
       </div>
 
       <div v-else class="stack-md">
@@ -36,11 +36,11 @@
             <div>
               <h3>{{ company.legalName }}</h3>
               <p class="muted">
-                {{ company.tradeName || 'No trade name' }} ·
+                {{ company.tradeName || 'Sem nome fantasia' }} ·
                 {{ company.registrationNumber }}
               </p>
             </div>
-            <span class="tag">{{ company.country || 'No country' }}</span>
+            <span class="tag">{{ company.country || 'Sem país' }}</span>
           </div>
         </article>
       </div>
@@ -71,7 +71,7 @@ async function loadCompanies() {
     errorMessage.value = '';
     companies.value = await fetchCompanies();
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, 'Unable to load companies.');
+    errorMessage.value = getErrorMessage(error, 'Não foi possível carregar as empresas.');
   } finally {
     loading.value = false;
   }
@@ -88,10 +88,10 @@ async function handleCreateCompany(payload: {
     errorMessage.value = '';
     message.value = '';
     await createCompany(payload);
-    message.value = 'Company created successfully.';
+    message.value = 'Empresa criada com sucesso.';
     await loadCompanies();
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, 'Unable to create company.');
+    errorMessage.value = getErrorMessage(error, 'Não foi possível criar a empresa.');
   } finally {
     submitting.value = false;
   }

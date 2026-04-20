@@ -5,6 +5,7 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  RelationId,
   UpdateDateColumn,
 } from 'typeorm';
 
@@ -15,9 +16,6 @@ import { Analysis } from './analysis.entity';
 export class Document {
   @PrimaryGeneratedColumn()
   id!: number;
-
-  @Column({ name: 'analysis_id', type: 'int' })
-  analysisId!: number;
 
   @Column({ name: 'original_filename', type: 'varchar', length: 255 })
   originalFilename!: string;
@@ -44,6 +42,9 @@ export class Document {
   })
   @JoinColumn({ name: 'analysis_id' })
   analysis!: Analysis;
+
+  @RelationId((document: Document) => document.analysis)
+  analysisId!: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

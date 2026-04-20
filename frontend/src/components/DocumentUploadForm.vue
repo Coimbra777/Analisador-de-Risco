@@ -1,12 +1,12 @@
 <template>
   <form class="stack-md" @submit.prevent="handleSubmit">
     <div class="field">
-      <label for="pdf">Upload PDF</label>
+      <label for="pdf">Enviar PDF</label>
       <input id="pdf" accept="application/pdf,.pdf" type="file" @change="handleChange" />
     </div>
 
     <button class="button" :disabled="loading || !selectedFile" type="submit">
-      {{ loading ? 'Uploading...' : 'Upload and process' }}
+      {{ loading ? 'Enviando...' : 'Enviar e processar' }}
     </button>
   </form>
 </template>

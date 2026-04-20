@@ -30,16 +30,40 @@ export function calculateRiskScore(findings: RiskFinding[], riskLevel: string | 
 
 export function formatRiskLabel(riskLevel: string | null) {
   if (riskLevel === 'high') {
-    return 'High';
+    return 'Alto';
   }
 
   if (riskLevel === 'medium') {
-    return 'Medium';
+    return 'Médio';
   }
 
   if (riskLevel === 'low') {
-    return 'Low';
+    return 'Baixo';
   }
 
-  return 'Pending';
+  return 'Pendente';
+}
+
+export function formatStatusLabel(status: string | null) {
+  if (status === 'pending') {
+    return 'Pendente';
+  }
+
+  if (status === 'in_progress') {
+    return 'Em andamento';
+  }
+
+  if (status === 'completed') {
+    return 'Concluída';
+  }
+
+  if (status === 'failed') {
+    return 'Falhou';
+  }
+
+  if (status === 'available') {
+    return 'Disponível';
+  }
+
+  return status ?? '-';
 }

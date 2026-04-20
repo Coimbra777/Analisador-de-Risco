@@ -3,19 +3,19 @@
     <header class="topbar">
       <div>
         <h1>Supplier Risk Analyzer</h1>
-        <p class="muted">Minimal MVP frontend for the backend API.</p>
+        <p class="muted">Frontend MVP minimalista para a API do backend.</p>
       </div>
 
       <div class="topbar-actions">
         <nav class="nav-links">
-          <RouterLink to="/companies">Companies</RouterLink>
-          <RouterLink to="/analyses">Analyses</RouterLink>
+          <RouterLink to="/companies">Empresas</RouterLink>
+          <RouterLink to="/analyses">Análises</RouterLink>
         </nav>
 
         <div class="user-chip">
           <span>{{ user?.name }}</span>
           <button class="button secondary" type="button" @click="handleLogout">
-            Logout
+            Sair
           </button>
         </div>
       </div>
