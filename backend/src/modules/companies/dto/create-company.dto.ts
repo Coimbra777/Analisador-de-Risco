@@ -1,13 +1,18 @@
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class CreateSupplierDto {
+export class CreateCompanyDto {
   @IsString()
   @MaxLength(255)
-  name!: string;
+  legalName!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  tradeName?: string;
 
   @IsString()
   @MaxLength(50)
-  documentNumber!: string;
+  registrationNumber!: string;
 
   @IsOptional()
   @IsString()

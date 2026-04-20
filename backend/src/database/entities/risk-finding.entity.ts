@@ -1,0 +1,50 @@
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+
+import { RiskSeverity } from '../enums/risk-severity.enum';
+import { Analysis } from './analysis.entity';
+
+@Entity({ name: 'risk_findings' })
+export class RiskFinding {
+  @PrimaryGeneratedColumn()
+  id!: number;
+
+  @Column({ name: 'analysis_id', type: 'int' })
+  analysisId!: number;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  code!: string | null;
+
+  @Column({ type: 'varchar', length: 255 })
+  title!: string;
+
+  @Column({ type: 'text', nullable: true })
+  description!: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: RiskSeverity,
+    default: RiskSeverity.MEDIUM,
+  })
+  severity!: RiskSeverity;
+
+  @ManyToOne(() => Analysis, (analysis) => analysis.riskFindings, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'analysis_id' })
+  analysis!: Analysis;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt!: Date;
+}
