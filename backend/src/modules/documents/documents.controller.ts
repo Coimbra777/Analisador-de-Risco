@@ -24,6 +24,6 @@ export class DocumentsController {
     @Param('analysisId', ParseIntPipe) analysisId: number,
     @UploadedFile() file: UploadedPdfFile,
   ) {
-    return this.documentsService.uploadAndProcess(analysisId, file);
+    return this.documentsService.uploadDocumentForAnalysis(analysisId, file);
   }
 }

@@ -5,6 +5,10 @@ import { Repository } from 'typeorm';
 import { JwtUserPayload } from '../../common/auth/jwt-user-payload.interface';
 import { AnalysisStatus } from '../../database/enums/analysis-status.enum';
 import { Analysis, Company } from '../../database/entities';
+import {
+  toAnalysisDetailResponse,
+  toAnalysisListResponse,
+} from './analysis-response.mapper';
 import { CreateAnalysisDto } from './dto/create-analysis.dto';
 
 @Injectable()
@@ -45,7 +49,7 @@ export class AnalysesService {
       order: { createdAt: 'DESC' },
     });
 
-    return analyses.map((analysis) => this.toAnalysisListResponse(analysis));
+    return analyses.map(toAnalysisListResponse);
   }
 
   async findOne(id: number) {
@@ -63,53 +67,6 @@ export class AnalysesService {
       throw new NotFoundException('Analysis not found.');
     }
 
-    return this.toAnalysisDetailResponse(analysis);
-  }
-
-  private toAnalysisListResponse(analysis: Analysis) {
-    return {
-      id: analysis.id,
-      status: analysis.status,
-      riskLevel: analysis.riskLevel,
-      summaryText: analysis.summaryText,
-      completedAt: analysis.completedAt,
-      company: {
-        id: analysis.company.id,
-        legalName: analysis.company.legalName,
-        registrationNumber: analysis.company.registrationNumber,
-      },
-      createdBy: {
-        id: analysis.createdBy.id,
-        name: analysis.createdBy.name,
-        email: analysis.createdBy.email,
-      },
-      createdAt: analysis.createdAt,
-      updatedAt: analysis.updatedAt,
-    };
-  }
-
-  private toAnalysisDetailResponse(analysis: Analysis) {
-    return {
-      ...this.toAnalysisListResponse(analysis),
-      documents: analysis.documents.map((document) => ({
-        id: document.id,
-        originalFilename: document.originalFilename,
-        mimeType: document.mimeType,
-        storageKey: document.storageKey,
-        fileSizeBytes: document.fileSizeBytes,
-        status: document.status,
-        createdAt: document.createdAt,
-        updatedAt: document.updatedAt,
-      })),
-      riskFindings: analysis.riskFindings.map((riskFinding) => ({
-        id: riskFinding.id,
-        code: riskFinding.code,
-        title: riskFinding.title,
-        description: riskFinding.description,
-        severity: riskFinding.severity,
-        createdAt: riskFinding.createdAt,
-        updatedAt: riskFinding.updatedAt,
-      })),
-    };
+    return toAnalysisDetailResponse(analysis);
   }
 }

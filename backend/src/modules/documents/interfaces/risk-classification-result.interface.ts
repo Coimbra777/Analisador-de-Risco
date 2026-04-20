@@ -12,5 +12,4 @@ export interface RiskClassificationResult {
   riskLevel: AnalysisRiskLevel;
   summaryText: string;
   findings: ClassifiedRiskFinding[];
-  extractedText: string;
 }

@@ -6,17 +6,18 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { extname } from 'node:path';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 import { AnalysisRiskLevel } from '../../database/enums/analysis-risk-level.enum';
 import { AnalysisStatus } from '../../database/enums/analysis-status.enum';
 import { DocumentStatus } from '../../database/enums/document-status.enum';
 import { Analysis, Document, RiskFinding } from '../../database/entities';
+import { toAnalysisDetailResponse } from '../analyses/analysis-response.mapper';
 import { UploadedPdfFile } from './interfaces/uploaded-pdf-file.interface';
 import { RiskClassificationResult } from './interfaces/risk-classification-result.interface';
-import { LocalFileStorageService } from './services/local-file-storage.service';
-import { PdfTextExtractorService } from './services/pdf-text-extractor.service';
-import { RiskClassificationService } from './services/risk-classification.service';
+import { FileStorageService } from './services/file-storage.service';
+import { PdfTextService } from './services/pdf-text.service';
+import { RiskRulesService } from './services/risk-rules.service';
 
 @Injectable()
 export class DocumentsService {
@@ -25,53 +26,107 @@ export class DocumentsService {
     private readonly analysesRepository: Repository<Analysis>,
     @InjectRepository(Document)
     private readonly documentsRepository: Repository<Document>,
-    @InjectRepository(RiskFinding)
-    private readonly riskFindingsRepository: Repository<RiskFinding>,
     private readonly configService: ConfigService,
-    private readonly localFileStorageService: LocalFileStorageService,
-    private readonly pdfTextExtractorService: PdfTextExtractorService,
-    private readonly riskClassificationService: RiskClassificationService,
+    private readonly fileStorageService: FileStorageService,
+    private readonly pdfTextService: PdfTextService,
+    private readonly riskRulesService: RiskRulesService,
   ) {}
 
-  async uploadAndProcess(analysisId: number, file: UploadedPdfFile) {
-    if (!file) {
-      throw new BadRequestException('A PDF file is required.');
+  async uploadDocumentForAnalysis(analysisId: number, file: UploadedPdfFile) {
+    this.validateFile(file);
+
+    const analysis = await this.getAnalysisOrFail(analysisId);
+    await this.markAnalysisAsProcessing(analysis.id);
+
+    let savedDocumentId: number | null = null;
+
+    try {
+      const storageKey = await this.fileStorageService.savePdf(file, analysisId);
+      savedDocumentId = await this.createDocumentRecord(
+        analysis,
+        file,
+        storageKey,
+      );
+
+      const extractedText = await this.pdfTextService.extractText(file.buffer);
+      const classification = this.riskRulesService.classify(extractedText);
+
+      await this.finishSuccessfulProcessing(
+        analysis.id,
+        savedDocumentId,
+        classification,
+      );
+    } catch (error) {
+      await this.finishFailedProcessing(analysis.id, savedDocumentId);
+
+      throw error;
     }
 
-    this.validatePdfFile(file);
+    const updatedAnalysis = await this.loadAnalysisDetail(analysis.id);
 
+    return {
+      message: 'Document uploaded and analysis processed successfully.',
+      analysis: toAnalysisDetailResponse(updatedAnalysis),
+    };
+  }
+
+  private async getAnalysisOrFail(analysisId: number) {
     const analysis = await this.analysesRepository.findOneBy({ id: analysisId });
 
     if (!analysis) {
       throw new NotFoundException('Analysis not found.');
     }
 
+    return analysis;
+  }
+
+  private async markAnalysisAsProcessing(analysisId: number) {
     await this.analysesRepository.update(analysisId, {
-      status: AnalysisStatus.IN_PROGRESS,
+      status: AnalysisStatus.PROCESSING,
       completedAt: null,
     });
+  }
 
-    const savedFile = await this.localFileStorageService.savePdf(file, analysisId);
-    let savedDocumentId: number | null = null;
+  private async createDocumentRecord(
+    analysis: Analysis,
+    file: UploadedPdfFile,
+    storageKey: string,
+  ): Promise<number> {
+    const document = this.documentsRepository.create({
+      analysis,
+      originalFilename: file.originalname,
+      mimeType: file.mimetype,
+      storageKey,
+      fileSizeBytes: file.size,
+      status: DocumentStatus.PENDING,
+    });
 
-    try {
-      savedDocumentId = await this.insertDocumentRecord(analysisId, file, savedFile.relativePath);
+    const savedDocument = await this.documentsRepository.save(document);
 
-      const extractedText = await this.pdfTextExtractorService.extractText(file.buffer);
-      const classification = this.riskClassificationService.classify(extractedText);
+    return savedDocument.id;
+  }
 
-      await this.persistSuccessfulProcessing(
-        analysisId,
-        savedDocumentId,
-        classification,
-      );
-    } catch (error) {
-      await this.persistFailedProcessing(analysisId, savedDocumentId);
+  private async finishSuccessfulProcessing(
+    analysisId: number,
+    documentId: number,
+    classification: RiskClassificationResult,
+  ) {
+    await this.documentsRepository.manager.transaction((manager) =>
+      this.applySuccessfulProcessing(manager, analysisId, documentId, classification),
+    );
+  }
 
-      throw error;
-    }
+  private async finishFailedProcessing(
+    analysisId: number,
+    documentId: number | null,
+  ) {
+    await this.documentsRepository.manager.transaction((manager) =>
+      this.applyFailedProcessing(manager, analysisId, documentId),
+    );
+  }
 
-    const updatedAnalysis = await this.analysesRepository.findOne({
+  private async loadAnalysisDetail(analysisId: number) {
+    const analysis = await this.analysesRepository.findOne({
       where: { id: analysisId },
       relations: {
         company: true,
@@ -81,132 +136,73 @@ export class DocumentsService {
       },
     });
 
-    return {
-      message: 'Document uploaded and analysis processed successfully.',
-      analysis: updatedAnalysis,
-    };
-  }
-
-  private async insertDocumentRecord(
-    analysisId: number,
-    file: UploadedPdfFile,
-    storageKey: string,
-  ): Promise<number> {
-    const result = (await this.documentsRepository.query(
-      `
-        INSERT INTO documents (
-          analysis_id,
-          original_filename,
-          mime_type,
-          storage_key,
-          file_size_bytes,
-          status
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-      `,
-      [
-        analysisId,
-        file.originalname,
-        file.mimetype,
-        storageKey,
-        file.size,
-        DocumentStatus.PENDING,
-      ],
-    )) as { insertId?: number };
-
-    const documentId = Number(result.insertId);
-
-    if (!documentId) {
-      throw new Error('Failed to persist document record.');
+    if (!analysis) {
+      throw new NotFoundException('Analysis not found.');
     }
 
-    return documentId;
+    return analysis;
   }
 
-  private async persistSuccessfulProcessing(
+  private async applySuccessfulProcessing(
+    manager: EntityManager,
     analysisId: number,
     documentId: number,
     classification: RiskClassificationResult,
   ) {
-    await this.documentsRepository.manager.transaction(async (manager) => {
-      await manager.query('UPDATE documents SET status = ? WHERE id = ?', [
-        DocumentStatus.AVAILABLE,
-        documentId,
-      ]);
+    await manager.getRepository(Document).update(documentId, {
+      status: DocumentStatus.AVAILABLE,
+    });
 
-      await manager.query('DELETE FROM risk_findings WHERE analysis_id = ?', [
-        analysisId,
-      ]);
+    await manager.getRepository(RiskFinding).delete({
+      analysisId,
+    });
 
-      for (const finding of classification.findings) {
-        await manager.query(
-          `
-            INSERT INTO risk_findings (
-              analysis_id,
-              code,
-              title,
-              description,
-              severity
-            )
-            VALUES (?, ?, ?, ?, ?)
-          `,
-          [
-            analysisId,
-            finding.code,
-            finding.title,
-            finding.description,
-            finding.severity,
-          ],
-        );
-      }
+    const findings = classification.findings.map((finding) =>
+      manager.getRepository(RiskFinding).create({
+        analysis: { id: analysisId } as Analysis,
+        code: finding.code,
+        title: finding.title,
+        description: finding.description,
+        severity: finding.severity,
+      }),
+    );
 
-      await manager.query(
-        `
-          UPDATE analyses
-          SET status = ?, risk_level = ?, summary_text = ?, completed_at = ?
-          WHERE id = ?
-        `,
-        [
-          AnalysisStatus.COMPLETED,
-          classification.riskLevel,
-          classification.summaryText,
-          new Date(),
-          analysisId,
-        ],
-      );
+    if (findings.length > 0) {
+      await manager.getRepository(RiskFinding).save(findings);
+    }
+
+    await manager.getRepository(Analysis).update(analysisId, {
+      status: AnalysisStatus.DONE,
+      riskLevel: classification.riskLevel,
+      summaryText: classification.summaryText,
+      completedAt: new Date(),
     });
   }
 
-  private async persistFailedProcessing(
+  private async applyFailedProcessing(
+    manager: EntityManager,
     analysisId: number,
     documentId: number | null,
   ) {
-    await this.documentsRepository.manager.transaction(async (manager) => {
-      if (documentId) {
-        await manager.query('UPDATE documents SET status = ? WHERE id = ?', [
-          DocumentStatus.FAILED,
-          documentId,
-        ]);
-      }
+    if (documentId) {
+      await manager.getRepository(Document).update(documentId, {
+        status: DocumentStatus.FAILED,
+      });
+    }
 
-      await manager.query(
-        `
-          UPDATE analyses
-          SET status = ?, risk_level = ?, summary_text = ?, completed_at = ?
-          WHERE id = ?
-        `,
-        [
-          AnalysisStatus.FAILED,
-          AnalysisRiskLevel.HIGH,
-          'The document could not be processed successfully.',
-          new Date(),
-          analysisId,
-        ],
-      );
+    await manager.getRepository(Analysis).update(analysisId, {
+      status: AnalysisStatus.FAILED,
+      riskLevel: AnalysisRiskLevel.HIGH,
+      summaryText: 'The document could not be processed successfully.',
+      completedAt: new Date(),
     });
   }
 
-  private validatePdfFile(file: UploadedPdfFile) {
+  private validateFile(file: UploadedPdfFile | undefined): asserts file is UploadedPdfFile {
+    if (!file) {
+      throw new BadRequestException('A PDF file is required.');
+    }
+
     const maxFileSizeBytes = this.configService.get<number>(
       'storage.maxFileSizeBytes',
       5 * 1024 * 1024,

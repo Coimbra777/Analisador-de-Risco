@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import pdfParse from 'pdf-parse';
 
 @Injectable()
-export class PdfTextExtractorService {
+export class PdfTextService {
   async extractText(fileBuffer: Buffer): Promise<string> {
     try {
       const result = await pdfParse(fileBuffer);
