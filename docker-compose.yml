@@ -38,6 +38,12 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
       UPLOAD_DIR: ${UPLOAD_DIR}
       MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     ports:
       - "${BACKEND_PORT}:3000"
     volumes:
@@ -52,7 +58,8 @@ services:
     container_name: supplier-risk-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       VITE_API_PROXY_TARGET: ${VITE_API_PROXY_TARGET}
     ports:
