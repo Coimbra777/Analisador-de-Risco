@@ -1,12 +1,12 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { extname } from 'node:path';
 import { EntityManager, Repository } from 'typeorm';
 
 import { JwtUserPayload } from '../../common/auth/jwt-user-payload.interface';
@@ -18,16 +18,16 @@ import { toAnalysisDetailResponse } from '../../common/mappers/analysis-response
 import { AnalysisStatus } from '../../database/enums/analysis-status.enum';
 import { DocumentStatus } from '../../database/enums/document-status.enum';
 import { Analysis, Document, RiskFinding } from '../../database/entities';
-import { UploadedPdfFile } from './interfaces/uploaded-pdf-file.interface';
+import { UploadedDocumentFile } from './interfaces/uploaded-document-file.interface';
 import { RiskClassificationResult } from './interfaces/risk-classification-result.interface';
 import {
   buildConsolidatedAnalysisSummary,
   maxDocumentRiskLevel,
   partitionDocumentsByProcessingState,
 } from './analysis-aggregate.util';
+import { RISK_ANALYZER, type RiskAnalyzer } from './risk-analyzer.contract';
 import { FileStorageService } from './services/file-storage.service';
-import { PdfTextService } from './services/pdf-text.service';
-import { RiskRulesService } from './services/risk-rules.service';
+import { DocumentTextExtractionService } from './text-extraction/document-text-extraction.service';
 
 @Injectable()
 export class DocumentsService {
@@ -38,13 +38,14 @@ export class DocumentsService {
     private readonly documentsRepository: Repository<Document>,
     private readonly configService: ConfigService,
     private readonly fileStorageService: FileStorageService,
-    private readonly pdfTextService: PdfTextService,
-    private readonly riskRulesService: RiskRulesService,
+    private readonly documentTextExtraction: DocumentTextExtractionService,
+    @Inject(RISK_ANALYZER)
+    private readonly riskAnalyzer: RiskAnalyzer,
   ) {}
 
   async uploadForAnalysis(
     analysisId: number,
-    file: UploadedPdfFile,
+    file: UploadedDocumentFile,
     currentUser: JwtUserPayload,
   ) {
     this.validateUploadedFile(file);
@@ -55,7 +56,10 @@ export class DocumentsService {
     let documentId: number | null = null;
 
     try {
-      const storageKey = await this.fileStorageService.savePdf(file, analysisId);
+      const storageKey = await this.fileStorageService.saveUploadedFile(
+        file,
+        analysisId,
+      );
       documentId = await this.saveDocumentMetadata(
         analysis.id,
         file,
@@ -63,9 +67,8 @@ export class DocumentsService {
       );
       const savedDocumentId = documentId;
 
-      const { extractedText, classification } = await this.extractAndClassifyPdf(
-        file.buffer,
-      );
+      const { extractedText, classification } =
+        await this.extractAndClassifyDocument(file);
 
       await this.documentsRepository.manager.transaction((manager) =>
         this.completeSuccessfulProcessing(
@@ -106,14 +109,19 @@ export class DocumentsService {
     return analysis;
   }
 
-  private async extractAndClassifyPdf(fileBuffer: Buffer) {
-    const extractedText = await this.pdfTextService.extractText(fileBuffer);
-    this.assertReadableText(extractedText);
+  private async extractAndClassifyDocument(file: UploadedDocumentFile) {
+    const extractedText = await this.documentTextExtraction.extractText({
+      buffer: file.buffer,
+      mimetype: file.mimetype,
+      originalFilename: file.originalname,
+    });
+    this.assertNonEmptyExtractedText(extractedText);
 
-    return {
+    const classification = await this.riskAnalyzer.analyze({
       extractedText,
-      classification: this.riskRulesService.classify(extractedText),
-    };
+    });
+
+    return { extractedText, classification };
   }
 
   private async markAnalysisAsProcessing(analysisId: number) {
@@ -125,7 +133,7 @@ export class DocumentsService {
 
   private async saveDocumentMetadata(
     analysisId: number,
-    file: UploadedPdfFile,
+    file: UploadedDocumentFile,
     storageKey: string,
   ): Promise<number> {
     const document = this.documentsRepository.create({
@@ -283,34 +291,34 @@ export class DocumentsService {
     });
   }
 
-  private assertReadableText(text: string) {
+  private assertNonEmptyExtractedText(text: string) {
     if (text.trim().length === 0) {
-      throw new BadRequestException(DOCUMENT_MESSAGES.UNREADABLE_PDF);
+      throw new BadRequestException(DOCUMENT_MESSAGES.EXTRACTION_EMPTY);
     }
   }
 
-  private validateUploadedFile(file: UploadedPdfFile | undefined): asserts file is UploadedPdfFile {
+  private validateUploadedFile(
+    file: UploadedDocumentFile | undefined,
+  ): asserts file is UploadedDocumentFile {
     if (!file) {
-      throw new BadRequestException(DOCUMENT_MESSAGES.PDF_REQUIRED);
+      throw new BadRequestException(DOCUMENT_MESSAGES.FILE_REQUIRED);
     }
 
-    this.assertPdfFile(file);
+    this.assertSupportedDocumentType(file);
     this.assertFileSizeWithinLimit(file);
   }
 
-  private assertPdfFile(file: UploadedPdfFile) {
-    if (file.mimetype === 'application/pdf') {
+  private assertSupportedDocumentType(file: UploadedDocumentFile) {
+    if (
+      this.documentTextExtraction.isSupported(file.mimetype, file.originalname)
+    ) {
       return;
     }
 
-    const fileExtension = extname(file.originalname).toLowerCase();
-
-    if (fileExtension !== '.pdf') {
-      throw new BadRequestException(DOCUMENT_MESSAGES.PDF_ONLY);
-    }
+    throw new BadRequestException(DOCUMENT_MESSAGES.UNSUPPORTED_FILE_TYPE);
   }
 
-  private assertFileSizeWithinLimit(file: UploadedPdfFile) {
+  private assertFileSizeWithinLimit(file: UploadedDocumentFile) {
     const maxFileSizeBytes = this.configService.get<number>(
       'storage.maxFileSizeBytes',
       5 * 1024 * 1024,

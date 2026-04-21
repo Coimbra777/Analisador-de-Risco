@@ -6,6 +6,7 @@ import {
   ClassifiedRiskFinding,
   RiskClassificationResult,
 } from '../interfaces/risk-classification-result.interface';
+import type { RiskAnalyzer, RiskAnalyzerInput } from '../risk-analyzer.contract';
 
 const CRITICAL_TERMS = [
   'lawsuit',
@@ -59,7 +60,11 @@ type RiskMatches = {
 };
 
 @Injectable()
-export class RiskRulesService {
+export class RiskRulesService implements RiskAnalyzer {
+  async analyze(input: RiskAnalyzerInput): Promise<RiskClassificationResult> {
+    return Promise.resolve(this.classify(input.extractedText));
+  }
+
   classify(text: string): RiskClassificationResult {
     const normalizedText = text.trim().toLowerCase();
     const matches = this.findRiskMatches(normalizedText);

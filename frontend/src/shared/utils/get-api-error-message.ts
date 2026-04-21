@@ -11,6 +11,11 @@ const MESSAGE_TRANSLATIONS: Record<string, string> = {
   'You do not have access to this analysis.': 'Voce nao tem acesso a esta analise.',
   'A company with this registration number already exists for your account.':
     'Ja existe uma empresa com este numero de registro na sua conta.',
+  'Unsupported file type. Allowed: PDF, PNG, JPEG, DOCX, XLSX.':
+    'Tipo de arquivo nao suportado. Use PDF, PNG, JPEG, DOCX ou XLSX.',
+  'No readable text could be extracted from this file.':
+    'Nao foi possivel extrair texto legivel deste arquivo.',
+  'A file is required.': 'Selecione um arquivo para enviar.',
   'Only PDF files are allowed.': 'Envie um arquivo em PDF.',
   'No readable text could be extracted from the PDF.':
     'Nao foi possivel extrair texto legivel do PDF enviado.',

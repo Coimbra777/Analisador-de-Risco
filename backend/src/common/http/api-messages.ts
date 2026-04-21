@@ -19,11 +19,11 @@ export const ANALYSIS_MESSAGES = {
 
 export const DOCUMENT_MESSAGES = {
   UPLOAD_SUCCESS: 'Document uploaded and analysis processed successfully.',
-  PDF_REQUIRED: 'A PDF file is required.',
-  PDF_ONLY: 'Only PDF files are allowed.',
-  UNREADABLE_PDF: 'No readable text could be extracted from the PDF.',
-  PROCESSING_FAILED:
-    'The document could not be processed because no readable text was extracted from the PDF.',
+  FILE_REQUIRED: 'A file is required.',
+  UNSUPPORTED_FILE_TYPE:
+    'Unsupported file type. Allowed: PDF, PNG, JPEG, DOCX, XLSX.',
+  EXTRACTION_EMPTY: 'No readable text could be extracted from this file.',
+  PROCESSING_FAILED: 'The document could not be processed successfully.',
 } as const;
 
 export const COMMON_ERROR_MESSAGES = {

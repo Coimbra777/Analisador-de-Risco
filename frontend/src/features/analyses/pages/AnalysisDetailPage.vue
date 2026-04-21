@@ -128,7 +128,7 @@
             />
             <EmptyState
               v-if="analysis.documents.length === 0"
-              description="Envie um PDF para começar o processamento desta análise."
+              description="Envie um documento (PDF, imagem, DOCX ou XLSX) para começar o processamento desta análise."
               title="Nenhum documento enviado ainda."
             />
             <div v-else class="stack-md">
@@ -215,7 +215,7 @@ const uploadPanelDescription = computed(() => analysisUi.value.uploadPanelDescri
 onMounted(() => {
   if (route.query.created === '1') {
     highlightMessage.value =
-      'Análise criada com sucesso. Agora o próximo passo é enviar o documento PDF.';
+      'Análise criada com sucesso. Agora o próximo passo é enviar um documento para análise.';
   }
 
   loadAnalysis();

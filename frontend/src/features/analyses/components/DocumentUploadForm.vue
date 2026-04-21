@@ -1,12 +1,12 @@
 <template>
   <form class="stack-md" @submit.prevent="handleSubmit">
     <div class="field">
-      <label for="pdf">Enviar PDF</label>
+      <label for="doc">Enviar documento</label>
       <input
-        id="pdf"
+        id="doc"
         ref="fileInput"
         :disabled="loading"
-        accept="application/pdf,.pdf"
+        accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,application/pdf,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         type="file"
         @change="handleChange"
       />

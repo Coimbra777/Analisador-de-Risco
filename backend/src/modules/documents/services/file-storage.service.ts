@@ -4,13 +4,13 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 
-import { UploadedPdfFile } from '../interfaces/uploaded-pdf-file.interface';
+import { UploadedDocumentFile } from '../interfaces/uploaded-document-file.interface';
 
 @Injectable()
 export class FileStorageService {
   constructor(private readonly configService: ConfigService) {}
 
-  async savePdf(file: UploadedPdfFile, analysisId: number) {
+  async saveUploadedFile(file: UploadedDocumentFile, analysisId: number) {
     const uploadDir = this.configService.get<string>(
       'storage.uploadDir',
       'storage/uploads',
@@ -19,7 +19,7 @@ export class FileStorageService {
 
     await mkdir(analysisDir, { recursive: true });
 
-    const fileExtension = extname(file.originalname) || '.pdf';
+    const fileExtension = extname(file.originalname) || '.bin';
     const filename = `${Date.now()}-${randomUUID()}${fileExtension.toLowerCase()}`;
     const fullPath = join(analysisDir, filename);
 

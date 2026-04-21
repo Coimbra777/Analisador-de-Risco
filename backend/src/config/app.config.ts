@@ -19,4 +19,20 @@ export default () => ({
     uploadDir: process.env.UPLOAD_DIR ?? 'storage/uploads',
     maxFileSizeBytes: Number(process.env.MAX_FILE_SIZE_BYTES ?? 5242880),
   },
+  /** keyword | llm | llm_with_fallback */
+  riskAnalyzer: {
+    mode: process.env.RISK_ANALYZER_MODE ?? 'keyword',
+  },
+  llm: {
+    apiKey: process.env.LLM_API_KEY ?? '',
+    baseUrl: (process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1').replace(
+      /\/$/,
+      '',
+    ),
+    model: process.env.LLM_MODEL ?? 'gpt-4o-mini',
+    maxInputChars: Number(process.env.LLM_MAX_INPUT_CHARS ?? 12000),
+    timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? 60000),
+    /** OpenAI-compatible APIs: set false if the provider rejects response_format. */
+    jsonObjectMode: process.env.LLM_JSON_OBJECT_MODE !== 'false',
+  },
 });
