@@ -10,6 +10,7 @@ import {
 
 import { RiskSeverity } from '../enums/risk-severity.enum';
 import { Analysis } from './analysis.entity';
+import { Document } from './document.entity';
 
 @Entity({ name: 'risk_findings' })
 export class RiskFinding {
@@ -41,6 +42,16 @@ export class RiskFinding {
 
   @Column({ name: 'analysis_id', type: 'int' })
   analysisId!: number;
+
+  @ManyToOne(() => Document, (document) => document.riskFindings, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'document_id' })
+  document!: Document;
+
+  @Column({ name: 'document_id', type: 'int' })
+  documentId!: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

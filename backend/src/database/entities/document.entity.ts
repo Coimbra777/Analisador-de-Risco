@@ -4,12 +4,15 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
+import { AnalysisRiskLevel } from '../enums/analysis-risk-level.enum';
 import { DocumentStatus } from '../enums/document-status.enum';
 import { Analysis } from './analysis.entity';
+import { RiskFinding } from './risk-finding.entity';
 
 @Entity({ name: 'documents' })
 export class Document {
@@ -34,6 +37,23 @@ export class Document {
     default: DocumentStatus.PENDING,
   })
   status!: DocumentStatus;
+
+  @Column({ name: 'extracted_text', type: 'longtext', nullable: true })
+  extractedText!: string | null;
+
+  @Column({ name: 'summary_text', type: 'text', nullable: true })
+  summaryText!: string | null;
+
+  @Column({
+    name: 'risk_level',
+    type: 'enum',
+    enum: AnalysisRiskLevel,
+    nullable: true,
+  })
+  riskLevel!: AnalysisRiskLevel | null;
+
+  @OneToMany(() => RiskFinding, (riskFinding) => riskFinding.document)
+  riskFindings!: RiskFinding[];
 
   @ManyToOne(() => Analysis, (analysis) => analysis.documents, {
     nullable: false,

@@ -65,7 +65,7 @@ export class AnalysesService {
         company: true,
         createdBy: true,
         documents: true,
-        riskFindings: true,
+        riskFindings: { document: true },
       },
     });
 

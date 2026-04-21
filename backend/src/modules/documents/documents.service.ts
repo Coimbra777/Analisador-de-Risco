@@ -20,6 +20,11 @@ import { DocumentStatus } from '../../database/enums/document-status.enum';
 import { Analysis, Document, RiskFinding } from '../../database/entities';
 import { UploadedPdfFile } from './interfaces/uploaded-pdf-file.interface';
 import { RiskClassificationResult } from './interfaces/risk-classification-result.interface';
+import {
+  buildConsolidatedAnalysisSummary,
+  maxDocumentRiskLevel,
+  partitionDocumentsByProcessingState,
+} from './analysis-aggregate.util';
 import { FileStorageService } from './services/file-storage.service';
 import { PdfTextService } from './services/pdf-text.service';
 import { RiskRulesService } from './services/risk-rules.service';
@@ -58,13 +63,16 @@ export class DocumentsService {
       );
       const savedDocumentId = documentId;
 
-      const classification = await this.classifyUploadedDocument(file.buffer);
+      const { extractedText, classification } = await this.extractAndClassifyPdf(
+        file.buffer,
+      );
 
       await this.documentsRepository.manager.transaction((manager) =>
         this.completeSuccessfulProcessing(
           manager,
           analysis.id,
           savedDocumentId,
+          extractedText,
           classification,
         ),
       );
@@ -98,11 +106,14 @@ export class DocumentsService {
     return analysis;
   }
 
-  private async classifyUploadedDocument(fileBuffer: Buffer) {
+  private async extractAndClassifyPdf(fileBuffer: Buffer) {
     const extractedText = await this.pdfTextService.extractText(fileBuffer);
     this.assertReadableText(extractedText);
 
-    return this.riskRulesService.classify(extractedText);
+    return {
+      extractedText,
+      classification: this.riskRulesService.classify(extractedText),
+    };
   }
 
   private async markAnalysisAsProcessing(analysisId: number) {
@@ -138,7 +149,7 @@ export class DocumentsService {
         company: true,
         createdBy: true,
         documents: true,
-        riskFindings: true,
+        riskFindings: { document: true },
       },
     });
 
@@ -153,19 +164,24 @@ export class DocumentsService {
     manager: EntityManager,
     analysisId: number,
     documentId: number,
+    extractedText: string,
     classification: RiskClassificationResult,
   ) {
     await manager.getRepository(Document).update(documentId, {
       status: DocumentStatus.AVAILABLE,
+      extractedText,
+      summaryText: classification.summaryText,
+      riskLevel: classification.riskLevel,
     });
 
     await manager.getRepository(RiskFinding).delete({
-      analysisId,
+      documentId,
     });
 
     const findings = classification.findings.map((finding) =>
       manager.getRepository(RiskFinding).create({
-        analysis: { id: analysisId } as Analysis,
+        analysisId,
+        documentId,
         code: finding.code,
         title: finding.title,
         description: finding.description,
@@ -177,12 +193,7 @@ export class DocumentsService {
       await manager.getRepository(RiskFinding).save(findings);
     }
 
-    await manager.getRepository(Analysis).update(analysisId, {
-      status: AnalysisStatus.DONE,
-      riskLevel: classification.riskLevel,
-      summaryText: classification.summaryText,
-      completedAt: new Date(),
-    });
+    await this.syncAnalysisAggregate(manager, analysisId);
   }
 
   private async completeFailedProcessing(
@@ -193,18 +204,82 @@ export class DocumentsService {
     if (documentId) {
       await manager.getRepository(Document).update(documentId, {
         status: DocumentStatus.FAILED,
+        extractedText: null,
+        summaryText: null,
+        riskLevel: null,
       });
-    }
 
-    await manager.getRepository(RiskFinding).delete({
-      analysisId,
-    });
+      await manager.getRepository(RiskFinding).delete({
+        documentId,
+      });
+
+      await this.syncAnalysisAggregate(manager, analysisId);
+
+      return;
+    }
 
     await manager.getRepository(Analysis).update(analysisId, {
       status: AnalysisStatus.FAILED,
       riskLevel: null,
       summaryText: DOCUMENT_MESSAGES.PROCESSING_FAILED,
       completedAt: new Date(),
+    });
+  }
+
+  private async syncAnalysisAggregate(
+    manager: EntityManager,
+    analysisId: number,
+  ) {
+    const documents = await manager.getRepository(Document).find({
+      where: { analysisId },
+      order: { id: 'ASC' },
+    });
+
+    const { available, failed, pending } =
+      partitionDocumentsByProcessingState(documents);
+
+    const everyDocumentTerminal =
+      documents.length > 0 &&
+      pending.length === 0 &&
+      available.length + failed.length === documents.length;
+
+    const allFailed =
+      everyDocumentTerminal && available.length === 0 && failed.length > 0;
+
+    let status: AnalysisStatus;
+    let riskLevel: ReturnType<typeof maxDocumentRiskLevel> = null;
+    let summaryText: string | null = null;
+    let completedAt: Date | null = null;
+
+    if (available.length > 0) {
+      status = AnalysisStatus.DONE;
+      riskLevel = maxDocumentRiskLevel(
+        available.map((document) => document.riskLevel!),
+      );
+      summaryText = buildConsolidatedAnalysisSummary(available, failed.length);
+      completedAt = new Date();
+    } else if (allFailed) {
+      status = AnalysisStatus.FAILED;
+      riskLevel = null;
+      summaryText = DOCUMENT_MESSAGES.PROCESSING_FAILED;
+      completedAt = new Date();
+    } else if (documents.length === 0) {
+      status = AnalysisStatus.PENDING;
+      riskLevel = null;
+      summaryText = null;
+      completedAt = null;
+    } else {
+      status = AnalysisStatus.PROCESSING;
+      riskLevel = null;
+      summaryText = null;
+      completedAt = null;
+    }
+
+    await manager.getRepository(Analysis).update(analysisId, {
+      status,
+      riskLevel,
+      summaryText,
+      completedAt,
     });
   }
 
