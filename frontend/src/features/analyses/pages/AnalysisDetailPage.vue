@@ -1,159 +1,100 @@
 <template>
   <div class="stack-lg">
-    <section class="panel">
-      <div class="analysis-page-header">
-        <p class="muted">Análise #{{ analysis?.id ?? props.id }}</p>
-        <SectionHeader
-          description="Acompanhe o status da avaliação, envie o documento e consulte o resultado."
-          :title="analysis?.company.legalName || 'Detalhe da análise'"
-          title-tag="h2"
-        >
-          <template #actions>
-            <RouterLink class="button secondary inline-button" :to="{ name: 'analyses' }">
-              Voltar para análises
-            </RouterLink>
-          </template>
-        </SectionHeader>
-      </div>
+    <div class="analysis-page-header">
+      <p class="muted">Análise #{{ analysis?.id ?? props.id }}</p>
+      <SectionHeader
+        description="Acompanhe o resumo, envie documentos e veja o resultado da avaliação."
+        :title="analysis?.company.legalName || 'Detalhe da análise'"
+        title-tag="h2"
+      >
+        <template #actions>
+          <RouterLink class="button secondary inline-button" :to="{ name: 'analyses' }">
+            Voltar para análises
+          </RouterLink>
+        </template>
+      </SectionHeader>
+    </div>
 
-      <EmptyState
-        v-if="isLoading"
-        description="Estamos buscando o status, os documentos e o resultado mais recente."
-        title="Carregando análise..."
+    <EmptyState
+      v-if="isLoading"
+      description="Estamos buscando o status, os documentos e o resultado mais recente."
+      title="Carregando análise..."
+    />
+    <FeedbackBanner
+      v-else-if="loadError"
+      :message="loadError"
+      title="Não foi possível carregar esta análise."
+      variant="error"
+    />
+
+    <template v-else-if="analysis">
+      <FeedbackBanner
+        v-if="highlightMessage"
+        :title="highlightMessage"
+        variant="success"
       />
       <FeedbackBanner
-        v-else-if="errorMessage"
-        :message="errorMessage"
-        title="Não foi possível carregar esta análise."
+        v-if="dataRefreshError"
+        :message="dataRefreshError"
+        title="A análise foi atualizada, mas não foi possível recarregar os dados mais recentes."
         variant="error"
       />
 
-      <template v-else-if="analysis">
-        <FeedbackBanner
-          v-if="highlightMessage"
-          :title="highlightMessage"
-          variant="success"
+      <AnalysisSummaryCard :analysis="analysis" />
+
+      <section class="panel nested-panel upload-panel">
+        <SectionHeader
+          :description="uploadPanelDescription"
+          title="Enviar documentos"
+          title-tag="h3"
         />
+        <p v-if="contextHint" class="muted next-step-hint">{{ contextHint }}</p>
 
-        <section class="analysis-hero">
-          <div class="analysis-hero-main">
-            <div class="analysis-hero-badges">
-              <StatusBadge
-                :label="formatAnalysisStatusLabel(analysis.status)"
-                :tone="analysisStatusTone"
-              />
-              <StatusBadge
-                appearance="risk"
-                :label="riskLabel"
-                :tone="analysis.riskLevel || 'pending'"
-              />
-            </div>
+        <FeedbackBanner
+          v-if="uploadOutcomes.length > 0"
+          :message="uploadSummaryText"
+          :title="uploadSummaryTitle"
+          :variant="uploadSummaryVariant"
+        >
+          <ul v-if="hasMixedOrFailedUpload" class="upload-outcome-list">
+            <li v-for="(outcome, index) in uploadOutcomes" :key="`${outcome.name}-${index}`">
+              <span :class="outcome.ok ? 'outcome-ok' : 'outcome-fail'">
+                {{ outcome.ok ? '✓' : '✕' }} {{ outcome.name }}
+              </span>
+              <span v-if="!outcome.ok && outcome.message" class="outcome-msg">{{
+                outcome.message
+              }}</span>
+            </li>
+          </ul>
+        </FeedbackBanner>
 
-            <div class="stack-sm">
-              <h3>{{ heroTitle }}</h3>
-              <p class="muted">{{ nextStepText }}</p>
-            </div>
-          </div>
+        <AnalysisDocumentsUpload
+          ref="uploadPanelRef"
+          :upload-index="activeUploadIndex"
+          :upload-total="activeUploadTotal"
+          :uploading="isUploading"
+          @upload="handleSequentialUpload"
+        />
+      </section>
 
-          <div class="analysis-hero-stats">
-            <div class="stat-card">
-              <span class="muted">Score</span>
-              <strong>{{ riskScore }}/100</strong>
-            </div>
-            <div class="stat-card">
-              <span class="muted">Empresa</span>
-              <strong>{{ analysis.company.registrationNumber }}</strong>
-            </div>
-          </div>
-        </section>
+      <section class="panel nested-panel">
+        <SectionHeader
+          description="Todos os arquivos vinculados a esta análise e o status de cada um."
+          title="Documentos enviados"
+          title-tag="h3"
+        />
+        <AnalysisDocumentsList :documents="analysis.documents" />
+      </section>
 
-        <section class="panel nested-panel upload-panel">
-          <SectionHeader
-            :description="uploadPanelDescription"
-            title="Documento da análise"
-            title-tag="h3"
-          >
-            <template #actions>
-              <StatusBadge
-                appearance="tag"
-                :label="`${analysis.documents.length} documento${analysis.documents.length !== 1 ? 's' : ''}`"
-              />
-            </template>
-          </SectionHeader>
-
-          <EmptyState
-            v-if="isUploading"
-            description="Aguarde enquanto atualizamos o status e o resultado da análise."
-            title="Enviando e processando documento..."
-          />
-
-          <FeedbackBanner
-            v-else-if="uploadMessage"
-            :message="uploadMessage"
-            title="Documento processado com sucesso."
-            variant="success"
-          />
-
-          <DocumentUploadForm :loading="isUploading" @submit="handleUpload" />
-        </section>
-
-        <div class="detail-grid">
-          <section class="panel nested-panel">
-            <h3>Resumo da análise</h3>
-            <p>{{ summaryText }}</p>
-          </section>
-
-          <section class="panel nested-panel">
-            <h3>Empresa vinculada</h3>
-            <p>{{ analysis.company.legalName }}</p>
-            <p class="muted">{{ analysis.company.registrationNumber }}</p>
-          </section>
-        </div>
-
-        <div class="detail-grid">
-          <section class="panel nested-panel">
-            <SectionHeader
-              description="Veja os principais motivos que explicam o resultado desta análise."
-              title="Achados de risco"
-              title-tag="h3"
-            />
-            <FindingsList :findings="analysis.riskFindings" />
-          </section>
-
-          <section class="panel nested-panel">
-            <SectionHeader
-              description="Histórico dos arquivos enviados para esta análise."
-              title="Documentos vinculados"
-              title-tag="h3"
-            />
-            <EmptyState
-              v-if="analysis.documents.length === 0"
-              description="Envie um documento (PDF, imagem, DOCX ou XLSX) para começar o processamento desta análise."
-              title="Nenhum documento enviado ainda."
-            />
-            <div v-else class="stack-md">
-              <article
-                v-for="document in analysis.documents"
-                :key="document.id"
-                class="list-card"
-              >
-                <div class="card-header">
-                  <div>
-                    <h4>{{ document.originalFilename }}</h4>
-                    <p class="muted">{{ formatDocumentMeta(document) }}</p>
-                  </div>
-                  <StatusBadge
-                    appearance="tag"
-                    :label="formatDocumentStatusLabel(document.status)"
-                    :tone="getDocumentStatusTone(document.status)"
-                  />
-                </div>
-              </article>
-            </div>
-          </section>
-        </div>
-      </template>
-    </section>
+      <section class="panel nested-panel">
+        <SectionHeader
+          description="Veja os principais motivos que explicam o resultado desta análise."
+          title="Achados de risco"
+          title-tag="h3"
+        />
+        <FindingsList :findings="analysis.riskFindings" />
+      </section>
+    </template>
   </div>
 </template>
 
@@ -165,23 +106,15 @@ import {
   fetchAnalysisDetail,
   uploadAnalysisDocument,
 } from '@/features/analyses/api/analyses.api';
-import DocumentUploadForm from '@/features/analyses/components/DocumentUploadForm.vue';
+import AnalysisDocumentsList from '@/features/analyses/components/AnalysisDocumentsList.vue';
+import AnalysisDocumentsUpload from '@/features/analyses/components/AnalysisDocumentsUpload.vue';
+import AnalysisSummaryCard from '@/features/analyses/components/AnalysisSummaryCard.vue';
 import FindingsList from '@/features/analyses/components/FindingsList.vue';
 import EmptyState from '@/shared/ui/EmptyState.vue';
 import FeedbackBanner from '@/shared/ui/FeedbackBanner.vue';
 import SectionHeader from '@/shared/ui/SectionHeader.vue';
-import StatusBadge from '@/shared/ui/StatusBadge.vue';
 import type { AnalysisDetail } from '@/shared/types/api.types';
-import {
-  calculateRiskScore,
-  formatAnalysisStatusLabel,
-  formatDocumentStatusLabel,
-  formatRiskLabel,
-  getAnalysisDetailUi,
-  getAnalysisStatusTone,
-  getDocumentStatusTone,
-} from '@/shared/utils/analysis-ui';
-import { formatDateTime, formatFileSize } from '@/shared/utils/format';
+import { getAnalysisDetailUi } from '@/shared/utils/analysis-ui';
 import { getApiErrorMessage } from '@/shared/utils/get-api-error-message';
 
 const props = defineProps<{
@@ -192,43 +125,78 @@ const route = useRoute();
 const analysis = ref<AnalysisDetail | null>(null);
 const isLoading = ref(false);
 const isUploading = ref(false);
-const uploadMessage = ref('');
-const errorMessage = ref('');
+const loadError = ref('');
+const dataRefreshError = ref('');
+const uploadOutcomes = ref<
+  { name: string; ok: boolean; message?: string }[]
+>([]);
+const activeUploadIndex = ref(0);
+const activeUploadTotal = ref(0);
 const highlightMessage = ref('');
 
-const riskScore = computed(() =>
-  analysis.value
-    ? calculateRiskScore(analysis.value.riskFindings, analysis.value.riskLevel)
-    : 0,
-);
-const riskLabel = computed(() =>
-  analysis.value ? formatRiskLabel(analysis.value.riskLevel) : 'Pendente',
-);
-const summaryText = computed(() =>
-  analysis.value?.summaryText || 'O resultado aparecerá aqui depois que o documento for enviado e processado.',
-);
-const analysisStatusTone = computed(() => getAnalysisStatusTone(analysis.value?.status ?? null));
+const uploadPanelRef = ref<InstanceType<typeof AnalysisDocumentsUpload> | null>(null);
+
 const analysisUi = computed(() => getAnalysisDetailUi(analysis.value?.status ?? null));
-const heroTitle = computed(() => analysisUi.value.heroTitle);
-const nextStepText = computed(() => analysisUi.value.nextStepText);
 const uploadPanelDescription = computed(() => analysisUi.value.uploadPanelDescription);
+const contextHint = computed(() => analysisUi.value.nextStepText);
+
+const uploadSummaryTitle = computed(() => {
+  if (uploadOutcomes.value.length === 0) {
+    return '';
+  }
+  const failed = uploadOutcomes.value.filter((o) => !o.ok);
+  if (failed.length === 0) {
+    return 'Envio concluído';
+  }
+  if (failed.length === uploadOutcomes.value.length) {
+    return 'Nenhum arquivo foi enviado com sucesso';
+  }
+  return 'Envio concluído com falhas em alguns arquivos';
+});
+
+const uploadSummaryText = computed(() => {
+  if (uploadOutcomes.value.length === 0) {
+    return '';
+  }
+  const ok = uploadOutcomes.value.filter((o) => o.ok).length;
+  const n = uploadOutcomes.value.length;
+  if (ok === n) {
+    return `Todos os ${n} arquivo${n === 1 ? ' foi' : 's foram'} processado${n === 1 ? '' : 's'}. A lista de documentos foi atualizada.`;
+  }
+  if (ok === 0) {
+    return 'Nenhum arquivo foi enviado com sucesso. Verifique o tipo e o tamanho do arquivo e tente novamente.';
+  }
+  return 'Confira os detalhes abaixo. A lista de documentos foi atualizada com os envios concluídos com sucesso.';
+});
+
+const uploadSummaryVariant = computed(() =>
+  uploadOutcomes.value.length > 0 && uploadOutcomes.value.every((o) => o.ok)
+    ? 'success'
+    : 'error',
+);
+
+const hasMixedOrFailedUpload = computed(
+  () =>
+    uploadOutcomes.value.length > 0 &&
+    uploadOutcomes.value.some((o) => !o.ok),
+);
 
 onMounted(() => {
   if (route.query.created === '1') {
     highlightMessage.value =
-      'Análise criada com sucesso. Agora o próximo passo é enviar um documento para análise.';
+      'Análise criada com sucesso. Selecione um ou mais documentos e envie para análise.';
   }
 
-  loadAnalysis();
+  loadInitialAnalysis();
 });
 
-async function loadAnalysis() {
+async function loadInitialAnalysis() {
   try {
     isLoading.value = true;
-    errorMessage.value = '';
+    loadError.value = '';
     analysis.value = await fetchAnalysisDetail(Number(props.id));
   } catch (error) {
-    errorMessage.value = getApiErrorMessage(
+    loadError.value = getApiErrorMessage(
       error,
       'Não foi possível carregar a análise.',
     );
@@ -237,36 +205,91 @@ async function loadAnalysis() {
   }
 }
 
-async function handleUpload(file: File) {
+async function refreshAnalysisFromServer() {
+  const next = await fetchAnalysisDetail(Number(props.id));
+  analysis.value = next;
+}
+
+async function handleSequentialUpload(files: File[]) {
+  if (files.length === 0) {
+    return;
+  }
+
+  dataRefreshError.value = '';
+  uploadOutcomes.value = [];
+  isUploading.value = true;
+  const total = files.length;
+  activeUploadTotal.value = total;
+
+  for (let i = 0; i < total; i++) {
+    const file = files[i];
+    activeUploadIndex.value = i + 1;
+
+    try {
+      const response = await uploadAnalysisDocument(Number(props.id), file);
+      analysis.value = response.analysis;
+      uploadOutcomes.value = [
+        ...uploadOutcomes.value,
+        { name: file.name, ok: true },
+      ];
+    } catch (error) {
+      uploadOutcomes.value = [
+        ...uploadOutcomes.value,
+        {
+          name: file.name,
+          ok: false,
+          message: getApiErrorMessage(error, 'Falha no envio.'),
+        },
+      ];
+    }
+  }
+
   try {
-    isUploading.value = true;
-    errorMessage.value = '';
-    uploadMessage.value = '';
-    const response = await uploadAnalysisDocument(Number(props.id), file);
-    analysis.value = response.analysis;
-    uploadMessage.value = response.message;
-    highlightMessage.value = '';
+    await refreshAnalysisFromServer();
   } catch (error) {
-    errorMessage.value = getApiErrorMessage(
+    dataRefreshError.value = getApiErrorMessage(
       error,
-      'Não foi possível enviar o documento.',
+      'Não foi possível atualizar os dados da análise após o envio.',
     );
   } finally {
     isUploading.value = false;
+    activeUploadIndex.value = 0;
+    activeUploadTotal.value = 0;
+    uploadPanelRef.value?.clearSelection();
+    highlightMessage.value = '';
   }
-}
-
-function formatDocumentMeta(document: AnalysisDetail['documents'][number]) {
-  const details = [];
-
-  if (document.fileSizeBytes) {
-    details.push(formatFileSize(document.fileSizeBytes));
-  }
-
-  if (document.createdAt) {
-    details.push(`Enviado em ${formatDateTime(document.createdAt)}`);
-  }
-
-  return details.join(' · ') || 'Documento enviado';
 }
 </script>
+
+<style scoped>
+.next-step-hint {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.upload-outcome-list {
+  margin: 8px 0 0;
+  padding-left: 1.1rem;
+}
+
+.upload-outcome-list li {
+  margin-bottom: 6px;
+  list-style: disc;
+}
+
+.outcome-ok {
+  color: #1b6e3f;
+}
+
+.outcome-fail {
+  color: #a52a2a;
+}
+
+.outcome-msg {
+  display: block;
+  font-size: 0.9rem;
+  color: #60708f;
+  margin-top: 2px;
+}
+</style>
