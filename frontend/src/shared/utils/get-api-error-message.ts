@@ -1,24 +1,24 @@
 const MESSAGE_TRANSLATIONS: Record<string, string> = {
-  'Email is already in use.': 'Ja existe um usuario com este email.',
-  'Invalid email or password.': 'Email ou senha invalidos.',
-  'Missing authorization token.': 'Sua sessao expirou. Entre novamente para continuar.',
+  'Email is already in use.': 'Já existe um usuário com este e-mail.',
+  'Invalid email or password.': 'E-mail ou senha inválidos.',
+  'Missing authorization token.': 'Sua sessão expirou. Entre novamente para continuar.',
   'Invalid or expired authorization token.':
-    'Sua sessao expirou. Entre novamente para continuar.',
-  'Company not found.': 'Empresa nao encontrada.',
-  'Analysis not found.': 'Analise nao encontrada.',
-  'Document not found.': 'Documento nao encontrado.',
-  'You do not have access to this company.': 'Voce nao tem acesso a esta empresa.',
-  'You do not have access to this analysis.': 'Voce nao tem acesso a esta analise.',
+    'Sua sessão expirou. Entre novamente para continuar.',
+  'Company not found.': 'Empresa não encontrada.',
+  'Analysis not found.': 'Análise não encontrada.',
+  'Document not found.': 'Documento não encontrado.',
+  'You do not have access to this company.': 'Você não tem acesso a esta empresa.',
+  'You do not have access to this analysis.': 'Você não tem acesso a esta análise.',
   'A company with this registration number already exists for your account.':
-    'Ja existe uma empresa com este numero de registro na sua conta.',
+    'Já existe uma empresa com este número de registro na sua conta.',
   'Unsupported file type. Allowed: PDF, PNG, JPEG, DOCX, XLSX.':
-    'Tipo de arquivo nao suportado. Use PDF, PNG, JPEG, DOCX ou XLSX.',
+    'Tipo de arquivo não suportado. Use PDF, PNG, JPEG, DOCX ou XLSX.',
   'No readable text could be extracted from this file.':
-    'Nao foi possivel extrair texto legivel deste arquivo.',
+    'Não foi possível extrair texto legível deste arquivo.',
   'A file is required.': 'Selecione um arquivo para enviar.',
   'Only PDF files are allowed.': 'Envie um arquivo em PDF.',
   'No readable text could be extracted from the PDF.':
-    'Nao foi possivel extrair texto legivel do PDF enviado.',
+    'Não foi possível extrair texto legível do PDF enviado.',
   'Unexpected error.': 'Ocorreu um erro inesperado. Tente novamente.',
   'Internal server error.': 'Ocorreu um erro interno. Tente novamente.',
 };
@@ -46,7 +46,7 @@ function translateMessage(message?: string) {
   }
 
   if (message.startsWith('File is too large')) {
-    return 'O arquivo excede o tamanho maximo permitido.';
+    return 'O arquivo excede o tamanho máximo permitido.';
   }
 
   return message;

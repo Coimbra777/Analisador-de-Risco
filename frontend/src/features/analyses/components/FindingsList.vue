@@ -24,10 +24,10 @@
 </template>
 
 <script setup lang="ts">
-import type { RiskFinding } from '@/shared/types/models';
+import type { RiskFinding } from '@/shared/types/api.types';
 import EmptyState from '@/shared/ui/EmptyState.vue';
 import StatusBadge from '@/shared/ui/StatusBadge.vue';
-import { formatRiskLabel } from '@/shared/utils/risk';
+import { formatRiskLabel } from '@/shared/utils/analysis-ui';
 
 defineProps<{
   findings: RiskFinding[];

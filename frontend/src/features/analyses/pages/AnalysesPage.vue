@@ -95,19 +95,19 @@ import {
   fetchAnalysisList,
 } from '@/features/analyses/api/analyses.api';
 import AnalysisForm from '@/features/analyses/components/AnalysisForm.vue';
-import { getAnalysisListUi } from '@/features/analyses/utils/analysis-status';
 import { fetchCompanyList } from '@/features/companies/api/companies.api';
 import AppButton from '@/shared/ui/AppButton.vue';
 import EmptyState from '@/shared/ui/EmptyState.vue';
 import FeedbackBanner from '@/shared/ui/FeedbackBanner.vue';
 import SectionHeader from '@/shared/ui/SectionHeader.vue';
 import StatusBadge from '@/shared/ui/StatusBadge.vue';
-import type { AnalysisListItem, Company } from '@/shared/types/models';
-import { getApiErrorMessage } from '@/shared/utils/get-api-error-message';
+import type { AnalysisListItem, Company } from '@/shared/types/api.types';
 import {
   formatAnalysisStatusLabel,
   formatRiskLabel,
-} from '@/shared/utils/risk';
+  getAnalysisListUi,
+} from '@/shared/utils/analysis-ui';
+import { getApiErrorMessage } from '@/shared/utils/get-api-error-message';
 
 const router = useRouter();
 

@@ -1,5 +1,5 @@
 import { apiClient } from '@/shared/http/api-client';
-import type { Company } from '@/shared/types/models';
+import type { Company } from '@/shared/types/api.types';
 
 export async function fetchCompanyList() {
   const { data } = await apiClient.get<Company[]>('/companies');

@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 
-import type { User } from '@/shared/types/models';
+import type { User } from '@/shared/types/api.types';
 
 const TOKEN_KEY = 'supplier-risk-token';
 const USER_KEY = 'supplier-risk-user';

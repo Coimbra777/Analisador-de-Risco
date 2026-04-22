@@ -1,5 +1,5 @@
 import { apiClient } from '@/shared/http/api-client';
-import type { AuthResponse, User } from '@/shared/types/models';
+import type { AuthResponse, User } from '@/shared/types/api.types';
 
 export async function registerUser(payload: {
   name: string;

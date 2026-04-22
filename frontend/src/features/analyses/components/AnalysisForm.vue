@@ -24,7 +24,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-import type { Company } from '@/shared/types/models';
+import type { Company } from '@/shared/types/api.types';
 import AppButton from '@/shared/ui/AppButton.vue';
 
 defineProps<{

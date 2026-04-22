@@ -163,25 +163,26 @@ import { useRoute } from 'vue-router';
 
 import {
   fetchAnalysisDetail,
+  uploadAnalysisDocument,
 } from '@/features/analyses/api/analyses.api';
-import { uploadAnalysisDocument } from '@/features/analyses/api/analysis-documents.api';
 import DocumentUploadForm from '@/features/analyses/components/DocumentUploadForm.vue';
 import FindingsList from '@/features/analyses/components/FindingsList.vue';
-import { getAnalysisDetailUi } from '@/features/analyses/utils/analysis-status';
 import EmptyState from '@/shared/ui/EmptyState.vue';
 import FeedbackBanner from '@/shared/ui/FeedbackBanner.vue';
 import SectionHeader from '@/shared/ui/SectionHeader.vue';
 import StatusBadge from '@/shared/ui/StatusBadge.vue';
-import type { AnalysisDetail } from '@/shared/types/models';
-import { getApiErrorMessage } from '@/shared/utils/get-api-error-message';
+import type { AnalysisDetail } from '@/shared/types/api.types';
 import {
   calculateRiskScore,
-  getAnalysisStatusTone,
-  getDocumentStatusTone,
   formatAnalysisStatusLabel,
   formatDocumentStatusLabel,
   formatRiskLabel,
-} from '@/shared/utils/risk';
+  getAnalysisDetailUi,
+  getAnalysisStatusTone,
+  getDocumentStatusTone,
+} from '@/shared/utils/analysis-ui';
+import { formatDateTime, formatFileSize } from '@/shared/utils/format';
+import { getApiErrorMessage } from '@/shared/utils/get-api-error-message';
 
 const props = defineProps<{
   id: string;
@@ -267,21 +268,5 @@ function formatDocumentMeta(document: AnalysisDetail['documents'][number]) {
   }
 
   return details.join(' · ') || 'Documento enviado';
-}
-
-function formatFileSize(fileSizeBytes: number) {
-  if (fileSizeBytes < 1024) {
-    return `${fileSizeBytes} B`;
-  }
-
-  if (fileSizeBytes < 1024 * 1024) {
-    return `${(fileSizeBytes / 1024).toFixed(1)} KB`;
-  }
-
-  return `${(fileSizeBytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('pt-BR');
 }
 </script>

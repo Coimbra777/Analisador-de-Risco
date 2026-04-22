@@ -4,30 +4,30 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { InjectRepository } from "@nestjs/typeorm";
+import { EntityManager, Repository } from "typeorm";
 
-import { JwtUserPayload } from '../../common/auth/jwt-user-payload.interface';
+import { JwtUserPayload } from "../../common/auth/jwt-user-payload.interface";
 import {
   ANALYSIS_MESSAGES,
   DOCUMENT_MESSAGES,
-} from '../../common/http/api-messages';
-import { toAnalysisDetailResponse } from '../../common/mappers/analysis-response.mapper';
-import { AnalysisStatus } from '../../database/enums/analysis-status.enum';
-import { DocumentStatus } from '../../database/enums/document-status.enum';
-import { Analysis, Document, RiskFinding } from '../../database/entities';
-import { UploadedDocumentFile } from './interfaces/uploaded-document-file.interface';
-import { RiskClassificationResult } from './interfaces/risk-classification-result.interface';
+} from "../../common/http/api-messages";
+import { toAnalysisDetailResponse } from "../../common/mappers/analysis-response.mapper";
+import { AnalysisStatus } from "../../database/enums/analysis-status.enum";
+import { DocumentStatus } from "../../database/enums/document-status.enum";
+import { Analysis, Document, RiskFinding } from "../../database/entities";
+import { UploadedDocumentFile } from "./interfaces/uploaded-document-file.interface";
+import { RiskClassificationResult } from "./interfaces/risk-classification-result.interface";
 import {
   buildConsolidatedAnalysisSummary,
   maxDocumentRiskLevel,
   partitionDocumentsByProcessingState,
-} from './analysis-aggregate.util';
-import { RISK_ANALYZER, type RiskAnalyzer } from './risk-analyzer.contract';
-import { FileStorageService } from './services/file-storage.service';
-import { DocumentTextExtractionService } from './text-extraction/document-text-extraction.service';
+} from "./analysis-aggregate.util";
+import { RISK_ANALYZER, type RiskAnalyzer } from "./risk-analyzer.contract";
+import { FileStorageService } from "./services/file-storage.service";
+import { DocumentTextExtractionService } from "./text-extraction/document-text-extraction.service";
 
 @Injectable()
 export class DocumentsService {
@@ -50,7 +50,10 @@ export class DocumentsService {
   ) {
     this.validateUploadedFile(file);
 
-    const analysis = await this.loadOwnedAnalysisOrFail(analysisId, currentUser.sub);
+    const analysis = await this.loadOwnedAnalysisOrFail(
+      analysisId,
+      currentUser.sub,
+    );
     await this.markAnalysisAsProcessing(analysis.id);
 
     let documentId: number | null = null;
@@ -87,7 +90,10 @@ export class DocumentsService {
       throw error;
     }
 
-    const updatedAnalysis = await this.loadAnalysisDetail(analysis.id, currentUser.sub);
+    const updatedAnalysis = await this.loadAnalysisDetail(
+      analysis.id,
+      currentUser.sub,
+    );
 
     return {
       message: DOCUMENT_MESSAGES.UPLOAD_SUCCESS,
@@ -96,7 +102,9 @@ export class DocumentsService {
   }
 
   private async loadOwnedAnalysisOrFail(analysisId: number, userId: number) {
-    const analysis = await this.analysesRepository.findOneBy({ id: analysisId });
+    const analysis = await this.analysesRepository.findOneBy({
+      id: analysisId,
+    });
 
     if (!analysis) {
       throw new NotFoundException(ANALYSIS_MESSAGES.NOT_FOUND);
@@ -240,7 +248,7 @@ export class DocumentsService {
   ) {
     const documents = await manager.getRepository(Document).find({
       where: { analysisId },
-      order: { id: 'ASC' },
+      order: { id: "ASC" },
     });
 
     const { available, failed, pending } =
@@ -320,7 +328,7 @@ export class DocumentsService {
 
   private assertFileSizeWithinLimit(file: UploadedDocumentFile) {
     const maxFileSizeBytes = this.configService.get<number>(
-      'storage.maxFileSizeBytes',
+      "storage.maxFileSizeBytes",
       5 * 1024 * 1024,
     );
 

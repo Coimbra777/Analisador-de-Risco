@@ -100,7 +100,7 @@ import EmptyState from '@/shared/ui/EmptyState.vue';
 import FeedbackBanner from '@/shared/ui/FeedbackBanner.vue';
 import SectionHeader from '@/shared/ui/SectionHeader.vue';
 import StatusBadge from '@/shared/ui/StatusBadge.vue';
-import type { Company } from '@/shared/types/models';
+import type { Company } from '@/shared/types/api.types';
 import { getApiErrorMessage } from '@/shared/utils/get-api-error-message';
 
 const companies = ref<Company[]>([]);
