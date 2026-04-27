@@ -3,6 +3,11 @@ export default () => ({
     name: process.env.APP_NAME ?? 'Supplier Risk Analyzer API',
     nodeEnv: process.env.NODE_ENV ?? 'development',
     port: Number(process.env.PORT ?? 3000),
+    /**
+     * Comma-separated origins. Ex.: `http://localhost:5173,https://app.exemplo.com`
+     * Vazio = CORS desligado (ok com proxy do Vite em dev).
+     */
+    corsOrigins: process.env.CORS_ORIGIN ?? '',
   },
   database: {
     host: process.env.DB_HOST ?? 'localhost',

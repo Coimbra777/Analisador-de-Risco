@@ -2,6 +2,25 @@
 
 Este documento explica o projeto **do zero**, como um mentor explicaria para alguém que quer dominar o sistema e defendê-lo em entrevista. Ele complementa o `README.md` (comandos e variáveis de ambiente) com **conceitos, fluxos e decisões**.
 
+### Índice
+
+1. [Visão geral do projeto](#1-visão-geral-do-projeto)
+2. [Arquitetura geral](#2-arquitetura-geral)
+3. [Fluxo completo da aplicação](#3-fluxo-completo-da-aplicação-passo-a-passo)
+4. [Estrutura de pastas (backend)](#4-estrutura-de-pastas-backend)
+5. [Sistema de extração de texto](#5-sistema-de-extração-de-texto)
+6. [Sistema de análise de risco](#6-sistema-de-análise-de-risco)
+7. [Integração com LLM](#7-integração-com-llm)
+8. [Persistência e banco de dados](#8-persistência-e-banco-de-dados)
+9. [Agregação de múltiplos documentos](#9-agregação-de-múltiplos-documentos)
+10. [Frontend (Vue)](#10-frontend-vue)
+11. [Decisões arquiteturais importantes (recap)](#11-decisões-arquiteturais-importantes-recap)
+12. [Limitações do projeto (honestidade técnica)](#12-limitações-do-projeto-honestidade-técnica)
+13. [Próximos passos (roadmap)](#13-próximos-passos-roadmap)
+14. [Como explicar em entrevista](#14-como-explicar-em-entrevista)
+15. [Operação, CORS, migrations e teste dos modos de análise](#15-operação-cors-migrations-e-teste-dos-modos-de-análise)
+16. [Leitura sugerida no repositório](#leitura-sugerida-no-repositório)
+
 ---
 
 ## 1. Visão geral do projeto
@@ -536,6 +555,79 @@ Fluxo típico:
 
 ---
 
+## 15. Operação, CORS, migrations e teste dos modos de análise
+
+### Migrations (TypeORM)
+
+Na pasta `backend/`:
+
+```bash
+npm run migration:run    # aplica pendentes
+npm run migration:revert # desfaz a última
+npm run migration:show  # situação
+```
+
+Requer `backend/.env` (ou variáveis) alinhado ao `typeorm-cli.config.ts`. Crie a **database** vazia no MySQL antes (ex. `CREATE DATABASE supplier_risk_analyzer`).
+
+### CORS (produção ou front noutro host)
+
+- Em **desenvolvimento** com Vite, o `proxy` em `frontend/vite.config.ts` envia `/api` ao backend: **CORS no backend costuma ser desnecessário**.
+- Se o front falar com o back **por origem diferente** (ex.: `https://app.com` → `https://api.com`), defina no backend:
+  - `CORS_ORIGIN=https://app.com` ou vários separados por vírgula: `https://a.com,https://b.com`
+- Com a variável **vazia** (padrão), o Nest **não** chama `enableCors` — evita abrir tudo acidentalmente.
+
+### Docker Compose (raiz do repositório)
+
+Há `docker-compose.yml` com `mysql`, `backend`, `frontend` (e `adminer`). Use o `.env` da raiz (há `.env.example`) para portas e credenciais. Fluxo típico: `docker compose up` (ou `up -d`) após ajustar variáveis; o backend, ao subir, precisa de migrations (executar `npm run migration:run` **dentro** do container de backend se o volume mapear o código, ou com DB acessível na rede Docker).
+
+### Testar o modo `keyword` (padrão)
+
+1. Garanta `RISK_ANALYZER_MODE=keyword` (ou omita; é o padrão em `app.config.ts`).
+2. A API usa listas de termos em `RiskRulesService` (crítico vs. atenção). Qualquer ficheiro cujo texto contenha, por ex., *fraud* ou *falência* (conforme listas) deve puxar o nível para HIGH ou MEDIUM.
+
+### Testar o modo `llm`
+
+1. Defina `LLM_API_KEY` (e opcionalmente `LLM_BASE_URL`, `LLM_MODEL`).
+2. `RISK_ANALYZER_MODE=llm` — se a chave faltar, o processamento de documento **falha** (o serviço lança e o filtro trata; documento fica `failed` conforme o fluxo de erro).
+
+### Testar o modo `llm_with_fallback`
+
+1. `RISK_ANALYZER_MODE=llm_with_fallback` com `LLM_API_KEY` **inválida** ou **rede** indisponível: o `SelectingRiskAnalyzer` captura, regista *warn* e aplica o analisador de **keyword** — a análise ainda conclui de forma previsível.
+
+### Chamadas HTTP mínimas (ex.: `curl`) — *smoke* manual
+
+Substitua `BASE` e o token JWT após `POST /api/auth/login`.
+
+```bash
+BASE=http://localhost:3000/api
+curl -sS "$BASE/health" | jq .
+
+# registo (se a base permitir)
+curl -sS -X POST "$BASE/auth/register" -H 'Content-Type: application/json' \
+  -d '{"name":"U","email":"u@test.com","password":"senha12345"}' | jq .
+
+# token
+TOKEN=$(curl -sS -X POST "$BASE/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"u@test.com","password":"senha12345"}' | jq -r .accessToken)
+
+# empresas
+curl -sS "$BASE/companies" -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+O upload de documento é `multipart` com o campo `file` — o `curl` fica longo; na prática, use o **frontend** (formulário na análise) ou `curl -F "file=@/caminho/contrato.pdf" .../api/analyses/ID/document` com o mesmo `Authorization`.
+
+### Testes automáticos
+
+No `backend/`: `npm test` (unitários e smoke do `/health` em módulo de teste).  
+No `frontend/`: `npm test` (utilitário de mapeamento de erros, etc.).
+
+### Em produção: JWT e CORS
+
+- Gere `JWT_SECRET` com valor **longo e aleatório**; o bootstrap **avisa** se `NODE_ENV=production` e o segredo ainda for o default de desenvolvimento.
+- Configure `CORS_ORIGIN` com os *origins* reais do front.
+
+---
+
 ## Leitura sugerida no repositório
 
 1. `README.md` — como rodar e variáveis de ambiente.  
@@ -544,4 +636,4 @@ Fluxo típico:
 4. `backend/src/modules/documents/text-extraction/document-text-extraction.service.ts` — escolha do extractor.  
 5. `backend/src/common/mappers/analysis-response.mapper.ts` — forma da API no detalhe da análise.
 
-Bons estudos — entender estes cinco arquivos já cobre a maior parte da história do sistema.
+Bons estudos — entender estes cinco ficheiros já cobre a maior parte da história do sistema.

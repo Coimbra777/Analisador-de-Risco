@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Trilha Nest — Supplier Risk Analyzer (Etapas 1–15)</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: "Segoe UI", system-ui, sans-serif; line-height: 1.45; color: #111; max-width: 48rem; margin: 0 auto; padding: 1rem; font-size: 10.5pt; }
+    h1 { font-size: 1.35rem; border-bottom: 1px solid #ccc; padding-bottom: 0.35rem; page-break-after: avoid; }
+    h2 { font-size: 1.15rem; margin-top: 1.5rem; page-break-after: avoid; color: #1a365d; }
+    h3 { font-size: 1.05rem; margin-top: 1rem; page-break-after: avoid; }
+    p { margin: 0.4rem 0; text-align: justify; }
+    ul, ol { margin: 0.35rem 0 0.5rem 1.2rem; }
+    li { margin: 0.2rem 0; }
+    code { background: #f4f4f4; padding: 0.1em 0.35em; font-size: 0.9em; }
+    pre code { display: block; background: #f7f7f7; padding: 0.75rem; font-size: 0.8rem; white-space: pre-wrap; border: 1px solid #e2e2e2; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; margin: 0.5rem 0; font-size: 0.95em; page-break-inside: avoid; }
+    th, td { border: 1px solid #ccc; padding: 0.35rem 0.5rem; text-align: left; }
+    th { background: #eef2f7; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 1rem 0; }
+    @media print { body { max-width: none; } h2, h3 { break-after: avoid; } tr { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+<h1>Trilha Nest.js no projeto Supplier Risk Analyzer</h1>
+<p><strong>validacao-documentos-app — Etapas 1 a 15</strong>  </p>
+<p><em>Documento de estudo: fundamentos de Nest, decoradores, pastas e funcionamento</em></p>
+<hr/>
+<h2>Parte A — O que você precisa saber sobre NestJS (base sólida)</h2>
+<h3>A.1 O que é o NestJS</h3>
+<p>O <strong>NestJS</strong> é um framework <strong>Node.js</strong> server-side, inspirado em <strong>Angular</strong> na organização: <strong>módulos</strong>, <strong>injeção de dependências (DI)</strong>, e fortemente tipado com <strong>TypeScript</strong>. Por baixo, o “adaptador” padrão é o <strong>HTTP do Express</strong> (há outro, Fastify, como alternativa). Não “substitui” o Node: é uma <strong>estrutura</strong> em cima dele para crescer com <strong>testabilidade</strong> e <strong>separação de responsabilidades</strong>.</p>
+<p><strong>Ideia-chave:</strong> em vez de espalhar <code>app.get(&#x27;/...&#x27;, handler)</code> num único ficheiro gigante, você organiza o código em <strong>módulos de domínio</strong> (auth, companies, etc.), com <strong>controladores</strong> (rotas) e <strong>providers</strong> (serviços, repositórios) ligados por <strong>injeção</strong>.</p>
+<h3>A.2 Injeção de dependências (DI)</h3>
+<ul>
+<li>Classes marcadas com <strong><code>@Injectable()</code></strong> podem ser <strong>instâncias</strong> geridas pelo <strong>container</strong> do Nest.  </li>
+<li>O <strong>constructor</strong> declara o que precisa: <code>constructor(private authService: AuthService) {}</code> — o Nest <strong>resolve</strong> e injeta, desde que o tipo esteja <strong>registado</strong> num módulo (<code>providers</code> ou importado de outro módulo que o exporta).  </li>
+<li>Vantagem: trocar implementações, testar com mocks, reutilizar a mesma instância (singleton, por padrão).</li>
+</ul>
+<p><strong>Tokens e interfaces:</strong> às vezes a implementação muda; usa-se <code>Symbol</code> ou string token com <code>@Inject(MEU_TOKEN)</code> (ex.: <code>RISK_ANALYZER</code> no projeto <em>documents</em>).</p>
+<h3>A.3 Módulo (<code>@Module</code>)</h3>
+<p>Um <strong>módulo</strong> agrupa o que “pertence” a um recorte do sistema:</p>
+<ul>
+<li><strong><code>imports</code></strong>: outros módulos cujas exportações este módulo usa (ex. <code>TypeOrmModule.forFeature</code>, <code>AuthModule</code>).  </li>
+<li><strong><code>controllers</code></strong>: recebem HTTP, delegam a <strong>services</strong>.  </li>
+<li><strong><code>providers</code></strong>: serviços, guards, repositórios, etc.  </li>
+<li><strong><code>exports</code></strong>: o que fica visível a <strong>outros módulos</strong> que importam este.</li>
+</ul>
+<p>O ficheiro raiz <strong><code>app.module.ts</code></strong> compõe a aplicação: importa config, base de dados, e todos os módulos de feature.</p>
+<h3>A.4 Controllers, rotas, parâmetros</h3>
+<ul>
+<li><code>@Controller(&#x27;prefixo&#x27;)</code> + métodos com <code>@Get()</code>, <code>@Post()</code>, etc. definem a API REST.  </li>
+<li>Parâmetros com <code>@Param(&#x27;id&#x27;, ParseIntPipe)</code>, <code>@Body()</code>, <code>@Query()</code> ligam a validação (via <strong>ValidationPipe</strong> global) aos <strong>DTOs</strong> com <code>class-validator</code>.  </li>
+<li>Upload: <code>@UseInterceptors(FileInterceptor(&#x27;file&#x27;))</code> + <code>@UploadedFile()</code> (Multer).</li>
+</ul>
+<h3>A.5 Services (lógica de aplicação)</h3>
+<ul>
+<li>Um <strong>@Injectable</strong> por domínio (ex. <code>CompaniesService</code>) concentra regras, chamadas a repositórios TypeORM, e em alguns casos <strong>mapeia</strong> entidade → resposta JSON.  </li>
+<li>O <strong>controller</strong> deve ser <strong>fino</strong>: chama o service; não duplica regra de negócio.</li>
+</ul>
+<h3>A.6 Pipes, guards, filters, interceptors (o “request lifecycle” resumido)</h3>
+<table><thead><tr>
+<th>Peça</th>
+<th>Papel resumido</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Guard</strong></td>
+<td>Autorização <strong>antes</strong> do handler (pode a API executar? Ex.: <code>JwtAuthGuard</code>).</td>
+</tr>
+<tr>
+<td><strong>Pipe</strong></td>
+<td><strong>Transforma</strong> e <strong>valida</strong> entradas (o <code>ValidationPipe</code> global + DTOs).</td>
+</tr>
+<tr>
+<td><strong>Exception filter</strong></td>
+<td><strong>Captura exceções</strong> e formata a resposta HTTP (ex.: <code>GlobalExceptionFilter</code>).</td>
+</tr>
+<tr>
+<td><strong>Interceptor</strong></td>
+<td>Cerca o handler (ex.: <code>FileInterceptor</code> para upload), ou lógica transversal.</td>
+</tr>
+</tbody></table>
+<p><strong>Ordem aproximada (HTTP):</strong> middleware → guard → interceptors (before) → pipe → handler → interceptors (after) — exceções sobem e podem ser tratadas por <strong>filter</strong>.</p>
+<h3>A.7 O que são <strong>decorators</strong> (anotações no TypeScript / Nest)</h3>
+<p><strong>Decorators</strong> (com <code>@</code>) são <em>metadata</em> ligadas a classes, métodos ou parâmetros, que o <strong>Nest lê</strong> em tempo de arranque para montar rotas, injeção, etc.</p>
+<p><strong>Nativos comuns no Nest (exemplos):</strong></p>
+<table><thead><tr>
+<th>Decorator</th>
+<th>Onde / uso</th>
+</tr></thead><tbody>
+<tr>
+<td><code>@Module</code>, <code>@Controller</code>, <code>@Injectable</code></td>
+<td>Módulo, rota, serviço injetável.</td>
+</tr>
+<tr>
+<td><code>@Get</code>, <code>@Post</code>, <code>@Patch</code>, ...</td>
+<td>Verbos HTTP.</td>
+</tr>
+<tr>
+<td><code>@Body</code>, <code>@Param</code>, <code>@Query</code>, <code>@Req</code>, <code>@Res</code></td>
+<td>Extrair partes do pedido.</td>
+</tr>
+<tr>
+<td><code>@UseGuards</code>, <code>@UsePipes</code>, <code>@UseInterceptors</code>, <code>@UseFilters</code></td>
+<td>Encadear no método ou controlador.</td>
+</tr>
+<tr>
+<td><code>@Optional()</code></td>
+<td>Dependência pode ser omitida.</td>
+</tr>
+<tr>
+<td><code>forwardRef</code></td>
+<td>Resolver dependência circular.</td>
+</tr>
+</tbody></table>
+<p><strong>No seu projeto (custom):</strong> <code>@CurrentUser()</code> em <code>current-user.decorator.ts</code> lê o <code>user</code> do request após o JWT guard. É um <strong>ParamDecorator</strong> que o Nest reúne com <code>createParamDecorator</code>.</p>
+<h3>A.8 Estrutura de pastas (backend) — <em>mapa mental</em></h3>
+<pre><code>backend/src/
+  main.ts                 ← arranque: NestFactory, prefixo &#x27;api&#x27;, pipes, filtros
+  app.module.ts         ← módulo raiz: imports de todos os features
+  config/                 ← ConfigModule, carregamento de .env
+  common/                 ← compartilhado (auth, filtros, http, mappers)
+  database/               ← TypeORM, entidades, migrations, typeorm.config
+  modules/
+    auth/                 ← login, register, JWT
+    companies/            ← CRUD contexto
+    analyses/             ← análises por empresa
+    documents/            ← upload, extração, risco, storage
+    health/               ← liveness/ops</code></pre>
+<ul>
+<li><strong><code>modules/&lt;nome&gt;/</code></strong>: módulo, controller, service, DTOs; às vezes subpastas (<code>dto/</code>, <code>services/</code>).  </li>
+<li><strong><code>common/</code></strong>: não é “módulo de feature” de negócio; reutilizável.  </li>
+<li><strong><code>database/entities</code></strong>: modelos de tabela; <strong><code>migrations</code></strong>: evolução do esquema.</li>
+</ul>
+<h3>A.9 Arranque da aplicação (<code>main.ts</code>)</h3>
+<ol>
+<li><code>NestFactory.create(AppModule)</code> — constrói o grafo de DI.  </li>
+<li><code>setGlobalPrefix(&#x27;api&#x27;)</code> — todas as rotas vão sob <code>/api/...</code>.  </li>
+<li><code>useGlobalPipes(new ValidationPipe({ whitelist, transform, ... }))</code> — DTOs validados.  </li>
+<li><code>useGlobalFilters(new GlobalExceptionFilter())</code> — erros com formato unificado.  </li>
+<li><code>listen(port)</code> — servidor HTTP a escutar.</li>
+</ol>
+<hr/>
+<h2>Parte B — Trilha por etapas (1 a 15) — resumo do que percorremos</h2>
+<h3>Etapa 1 — Node e API</h3>
+<ul>
+<li>Node como runtime; event loop; I/O assíncrona.  </li>
+<li><strong>API HTTP</strong> em Nest expõe recursos: <code>main.ts</code> arranca, processo fica a servir; build típico <code>dist/main.js</code> com <code>node</code> ou script npm.</li>
+</ul>
+<h3>Etapa 2 — Nest: módulos, DI, bootstrap</h3>
+<ul>
+<li><code>AppModule</code> importa <code>AppConfigModule</code>, <code>DatabaseModule</code>, módulos de feature.  </li>
+<li><code>ValidationPipe</code> e <code>GlobalExceptionFilter</code> no bootstrap.</li>
+</ul>
+<h3>Etapa 3 — Mapa de módulos</h3>
+<ul>
+<li><code>AuthModule</code> (autenticação), <code>CompaniesModule</code>, <code>AnalysesModule</code>, <code>DocumentsModule</code>, <code>HealthModule</code>, <code>DatabaseModule</code>, <code>AppConfigModule</code>.  </li>
+<li>Cada módulo agrega o que o domínio precisa.  </li>
+<li><strong>Health</strong> tipicamente responde a <code>GET /api/.../health</code> para sondas de “vivo” e integrações de deploy.</li>
+</ul>
+<h3>Etapa 4 — Controllers</h3>
+<ul>
+<li>Rotas reais, <code>ParseIntPipe</code> em <code>analysisId</code>, <code>FileInterceptor</code> em upload, guards.  </li>
+<li>DTOs alinhados ao corpo/params, exceto upload multipart (campo <code>file</code>).</li>
+</ul>
+<h3>Etapa 5 — Services</h3>
+<ul>
+<li><code>AuthService</code>, <code>CompaniesService</code>, <code>AnalysesService</code>, <code>DocumentsService</code> orquestram repositórios, transacções, e o contrato <code>RISK_ANALYZER</code>.</li>
+</ul>
+<h3>Etapa 6 — DTOs e ValidationPipe</h3>
+<ul>
+<li><code>whitelist</code>, <code>forbidNonWhitelisted</code>, <code>transform</code> — entrada segura; upload sem DTO de body (multipart).</li>
+</ul>
+<h3>Etapa 7 — Entidades TypeORM</h3>
+<ul>
+<li><code>User</code>, <code>Company</code>, <code>Analysis</code>, <code>Document</code>, <code>RiskFinding</code>, relações; <code>synchronize: false</code> e migrations; repositórios vão nos services.</li>
+</ul>
+<h3>Etapa 8 — JWT</h3>
+<ul>
+<li><code>JwtAuthGuard</code> com <code>JwtService.verifyAsync</code> e atribui <code>request[&#x27;user&#x27;]</code>; decorator <code>@CurrentUser()</code>.  </li>
+<li>Front: <code>Authorization: Bearer</code> e tratamento de 401.</li>
+</ul>
+<h3>Etapa 9 — Fluxo ponta a ponta</h3>
+<ul>
+<li>Register/login → company → analysis → document upload; pipeline: extração → análise → persistência e agregação; falhas e rethrow após tratar o estado do documento.</li>
+</ul>
+<h3>Etapa 10 — Upload</h3>
+<ul>
+<li><code>FileInterceptor(&#x27;file&#x27;)</code> (Multer), validação de ficheiro no service, <code>FileStorageService</code> grava em disco com nome seguro, <code>storageKey</code> no banco, evolução possível para S3.</li>
+</ul>
+<h3>Etapa 11 — Filtro de exceção global</h3>
+<ul>
+<li><code>@Catch()</code>; status e mensagem; 500 genérico ao cliente, stack no log; corpo com <code>path</code>, <code>timestamp</code>, <code>statusCode</code>, <code>message</code>.</li>
+</ul>
+<h3>Etapa 12 — Mappers</h3>
+<ul>
+<li><code>toUserResponse</code> / <code>toCompanyResponse</code> privados nos services; <code>analysis-response.mapper.ts</code> com lista, detalhe e merge de achados.  </li>
+<li>Entidade ≠ resposta; não expor hash de senha.</li>
+</ul>
+<h3>Etapa 13 — Regras de negócio e risco</h3>
+<ul>
+<li><code>RiskRulesService</code> (keywords), <code>LlmRiskAnalyzer</code>, <code>SelectingRiskAnalyzer</code> (modo env), <code>RISK_ANALYZER</code> token, <code>maxDocumentRiskLevel</code> e <code>syncAnalysisAggregate</code>.</li>
+</ul>
+<h3>Etapa 14 — Assíncrono e filas (evolução)</h3>
+<ul>
+<li>Hoje o upload espera tudo; fila + worker, idempotência, SQS vs Bull/Redis, desacoplar tempo de resposta.</li>
+</ul>
+<h3>Etapa 15 — Síntese e produção</h3>
+<ul>
+<li>Checklist: segredos, CORS, volume para uploads, health, <code>RISK_ANALYZER_MODE</code> e LLM, observabilidade; roadmap: fila, S3, testes, hardening.</li>
+</ul>
+<hr/>
+<h2>Parte C — Checklist de variáveis (referência rápida)</h2>
+<ul>
+<li><strong>Aplicação / DB:</strong> <code>PORT</code>, <code>DB_*</code>  </li>
+<li><strong>Auth:</strong> <code>JWT_SECRET</code>, <code>JWT_EXPIRES_IN</code>  </li>
+<li><strong>Storage:</strong> <code>UPLOAD_DIR</code>, <code>MAX_FILE_SIZE_BYTES</code>  </li>
+<li><strong>Risco:</strong> <code>RISK_ANALYZER_MODE</code> (<code>keyword</code> | <code>llm</code> | <code>llm_with_fallback</code>)  </li>
+<li><strong>LLM:</strong> <code>LLM_API_KEY</code>, <code>LLM_BASE_URL</code>, <code>LLM_MODEL</code>, <code>LLM_MAX_INPUT_CHARS</code>, <code>LLM_TIMEOUT_MS</code>, <code>LLM_JSON_OBJECT_MODE</code>  </li>
+<li><strong>OCR (README):</strong> <code>OCR_LANGS</code> quando aplicável</li>
+</ul>
+<hr/>
+<p><em>Documento gerado para acompanhar a trilha concluída (Etapas 1–15) no repositório <strong>validacao-documentos-app</strong>.</em></p>
+</body>
+</html>
